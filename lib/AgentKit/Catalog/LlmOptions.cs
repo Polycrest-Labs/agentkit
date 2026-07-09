@@ -11,8 +11,9 @@ public sealed class LlmOptions
 }
 
 /// <summary>How to reach one provider endpoint. <c>Kind</c> is <c>azure-openai</c> (the Responses API,
-/// key or Entra auth) or <c>openai-compat</c> (any OpenAI-compatible endpoint + API key: Gemini,
-/// NeuralWatt, …).</summary>
+/// key or Entra auth), <c>openai-compat</c> (any OpenAI-compatible endpoint + API key: NeuralWatt, …), or
+/// <c>gemini-native</c> (Gemini's <c>generateContent</c> API + key — the path that supports Search
+/// grounding, unlike Gemini's openai-compat endpoint).</summary>
 public sealed class LlmProviderOptions
 {
     public string Kind { get; set; } = "openai-compat";
@@ -22,11 +23,12 @@ public sealed class LlmProviderOptions
     /// <summary>Token-credential mode for <c>azure-openai</c> providers when no API key is set.</summary>
     public CredentialMode CredentialMode { get; set; } = CredentialMode.Auto;
 
-    /// <summary>An openai-compat provider needs an endpoint + key; an azure-openai provider needs an
-    /// endpoint (auth can be a token credential). Unconfigured providers' models are skipped by routing.</summary>
+    /// <summary>Every provider needs an endpoint; only <c>azure-openai</c> can authenticate without an API
+    /// key (a token credential), so every other kind additionally needs one. Unconfigured providers'
+    /// models are skipped by routing.</summary>
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(Endpoint)
-        && (!string.Equals(Kind, "openai-compat", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(ApiKey));
+        && (string.Equals(Kind, "azure-openai", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(ApiKey));
 }
 
 /// <summary>Azure token-credential selection, replacing the old <c>IHostEnvironment.IsDevelopment()</c>
