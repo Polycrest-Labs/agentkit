@@ -25,6 +25,6 @@ public static class OpenAICompatProvider
         {
             Endpoint = new Uri(options.Endpoint),
         });
-        return client.GetChatClient(card.Id).AsIChatClient();
+        return client.GetChatClient(card.WireName).AsIChatClient();
     }
 }
