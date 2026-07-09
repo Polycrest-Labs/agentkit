@@ -5,8 +5,8 @@
 //   search  HostedWebSearchTool: verify server-side web_search runs and URL citations surface
 //   vision  send a small image and ask what it is (provider vision check)
 //   models  print the catalog + provider configuration state
-// Reads web's dev user-secrets (Foundry:Endpoint/ApiKey, Llm:Providers:*:ApiKey) — never CI-run.
-//   dotnet run --project lib/AgentKit.Smoke -- search [--model gpt-chat-latest]
+// Reads the "agentkit-smoke" user-secrets (Foundry:Endpoint/ApiKey, Llm:Providers:*:ApiKey) — never CI-run.
+//   dotnet run --project smoke/AgentKit.Smoke -- search [--model gpt-chat-latest]
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 using System.Text.Json;
 using AgentKit;
@@ -28,7 +28,7 @@ string? Arg(string name)
 }
 
 var secrets = new ConfigurationBuilder()
-    .AddUserSecrets("vacadock-web")
+    .AddUserSecrets("agentkit-smoke")
     .AddEnvironmentVariables()
     .Build();
 

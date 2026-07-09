@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AgentKit</RootNamespace>
+    <AssemblyName>AgentKit</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- OPENAI001/AOAI001: the Responses API surface is [Experimental]; MEAI001 covers evolving
+         Microsoft.Extensions.AI members. Opt-in is deliberate. CS1591: not every member needs XML docs.
+         NU5104: Azure.AI.OpenAI has no stable release yet (see README version-pairing gotcha). -->
+    <NoWarn>$(NoWarn);NU1902;NU1903;OPENAI001;AOAI001;MEAI001;CS1591;NU5104</NoWarn>
+    <PackageId>Polycrest.AgentKit</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Hank Beasley</Authors>
+    <Description>Config-driven LLM model catalog + router, providers (Azure OpenAI Responses, OpenAI-compatible endpoints, Gemini native), per-hop completion logging with replayable vision images, failover + alerting, tolerant one-shot JSON completions, and a provider-agnostic streaming agent loop with function tools — built on Microsoft.Extensions.AI.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>ai;llm;agents;openai;azure-openai;gemini;microsoft-extensions-ai;model-router;failover;function-calling</PackageTags>
+    <PackageReleaseNotes>Initial NuGet package: the merged AgentKit line from the vacadock and hsa repos (see CHANGELOG.md).</PackageReleaseNotes>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Polycrest-Labs/agentkit</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Polycrest-Labs/agentkit</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.6.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.6.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

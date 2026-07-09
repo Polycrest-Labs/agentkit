@@ -1,15 +1,20 @@
-# AgentKit — changes in this repo (hsa)
+# AgentKit changelog
 
-**Provenance**
-- Source repo: `C:\projects\vacadock` (vacadock)
-- Source commit: `b21897e027cee71633c867a113aa0fcaef357ac4`
-- Copied: 2026-07-08
-- Copied trees: `lib/AgentKit`, `lib/AgentKit.Smoke`, `tests/AgentKit.Tests` → `lib/AgentKit.Tests` (bin/obj excluded)
+AgentKit started life inside the **vacadock** repo (`lib/AgentKit`), was copied into the
+**hsa** repo on 2026-07-08 (at vacadock commit `b21897e027cee71633c867a113aa0fcaef357ac4`),
+and evolved in both places for two days. This standalone repo is the merge of the two
+lines — see entry 9 — and ships as the **`Polycrest.AgentKit`** NuGet package.
 
-**Rule:** every subsequent change to any file under `lib/AgentKit*` requires an entry
-here — what changed, why, and the upstream intent. These changes will be incorporated
-back into vacadock immediately after this effort; this file is that PR's description,
-pre-written. The authoritative diff is `git diff <baseline-commit> -- lib/AgentKit*`.
+Entries 0–8 below are the hsa-side log, written while the fork was live (their file paths
+reflect the hsa layout: `lib/AgentKit*`). The vacadock side contributed one change in the
+same window: the Gemini native provider (entry 9 describes how the two lines merged).
+
+---
+
+## [0.1.0] — first NuGet release (2026-07-09)
+
+Everything below, merged: entries 0–8 (hsa) + the vacadock Gemini native provider,
+reconciled per entry 9.
 
 ---
 
@@ -144,3 +149,28 @@ Upstream intent: none — these are copy mechanics, not library changes.
   regression guard).
 - Upstream intent: yes — any vacadock DTO with a DateTime field parsed from model output gets the same
   robustness; candidate for the shared NuGet package.
+
+### 9. The merge: hsa line + vacadock line → this repo (2026-07-09)
+
+Three-way merged from the common baseline (vacadock `b21897e`, the copy point):
+
+- **From hsa** (entries 1–8): 64x64 smoke vision image, `IImageStore` hook,
+  `AgentJson` tolerant DateTime/numeric reads + `LlmNoJsonException`, the full legacy
+  date-format set, routine package bumps, `ModelCard.UpstreamModel`.
+- **From vacadock** (`e4683a3`): **Gemini native provider** — `gemini-native` provider
+  kind, `GeminiNativeChatClient`/`GeminiNativeProvider` (Gemini `generateContent` API,
+  the path that supports Search grounding), `GeminiSchema` sanitization + tests, and
+  `LlmProviderOptions.IsConfigured` now requiring a key for every non-azure kind.
+- **Conflict, resolved**: both sides independently built the same catalog-id-vs-wire-name
+  feature — hsa as `UpstreamModel`/`ApiModel`, vacadock as `ModelName`/`WireName`.
+  Canonical name is **`UpstreamModel`** (config) / **`ApiModel`** (resolved property);
+  the Gemini client was renamed to match. Hosts using `"ModelName"` in config must
+  rename the key to `"UpstreamModel"`.
+- **Removed**: `ModelQuirks.GroundingViaExtraBody` (vacadock's deletion) — Gemini search
+  grounding now rides the `gemini-native` provider instead of the openai-compat
+  `extra_body` hack. No host code referenced it; the Smoke catalog's search card now
+  uses `UpstreamModel` instead.
+- **Repo mechanics**: layout moved to `src/AgentKit` + `smoke/AgentKit.Smoke` +
+  `tests/AgentKit.Tests`; Smoke reads `agentkit-smoke` user-secrets; packaging metadata
+  added (`Polycrest.AgentKit`, MIT); publish via GitHub Actions Trusted Publishing,
+  mirroring polyauth.

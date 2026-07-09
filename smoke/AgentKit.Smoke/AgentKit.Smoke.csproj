@@ -7,8 +7,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>AgentKit.Smoke</RootNamespace>
     <AssemblyName>AgentKit.Smoke</AssemblyName>
-    <!-- Reads web's dev user-secrets (Foundry endpoint/key, provider keys) for live checks. -->
-    <UserSecretsId>vacadock-web</UserSecretsId>
+    <!-- Live-check secrets (Foundry endpoint/key, provider keys): dotnet user-secrets -p smoke/AgentKit.Smoke set ... -->
+    <UserSecretsId>agentkit-smoke</UserSecretsId>
     <NoWarn>$(NoWarn);OPENAI001;AOAI001;MEAI001</NoWarn>
   </PropertyGroup>
 
@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AgentKit\AgentKit.csproj" />
+    <ProjectReference Include="..\..\src\AgentKit\AgentKit.csproj" />
   </ItemGroup>
 
 </Project>

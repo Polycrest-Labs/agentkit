@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/smoke/">
+    <Project Path="smoke/AgentKit.Smoke/AgentKit.Smoke.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/AgentKit/AgentKit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentKit.Tests/AgentKit.Tests.csproj" />
+  </Folder>
+</Solution>
