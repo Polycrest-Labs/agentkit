@@ -24,7 +24,7 @@ public static class AzureOpenAIProvider
             ? new AzureOpenAIClient(endpoint, CreateCredential(options.CredentialMode))
             : new AzureOpenAIClient(endpoint, new AzureKeyCredential(options.ApiKey));
         // For Azure the Responses "model" is the deployment name; ResponsesClient carries no model itself.
-        return azure.GetResponsesClient().AsIChatClient(card.Id);
+        return azure.GetResponsesClient().AsIChatClient(card.ApiModel);
     }
 
     private static TokenCredential CreateCredential(CredentialMode mode) => mode switch

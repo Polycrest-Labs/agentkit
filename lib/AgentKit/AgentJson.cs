@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace AgentKit;
 
@@ -16,8 +18,19 @@ public static class AgentJson
     private static JsonSerializerOptions Create()
     {
         var o = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        // Model-authored JSON routinely carries a trailing comma or a stray // comment; tolerate both
+        // rather than fail the whole extraction (Web defaults already allow reading numbers from strings).
+        o.AllowTrailingCommas = true;
+        o.ReadCommentHandling = JsonCommentHandling.Skip;
         o.Converters.Add(new TolerantEnumConverterFactory());
         o.Converters.Add(new TolerantStringConverter());
+        o.Converters.Add(new TolerantDateTimeConverterFactory());
+        // Out-of-range / non-numeric scalars in a numeric field coerce to null/0 instead of throwing —
+        // an OCR'd 50-digit "total" or a "$" -prefixed price no longer fails the completion.
+        o.Converters.Add(new SafeNullableDecimalConverter());
+        o.Converters.Add(new SafeDecimalConverter());
+        o.Converters.Add(new SafeNullableIntConverter());
+        o.Converters.Add(new SafeIntConverter());
         return o;
     }
 
@@ -231,4 +244,225 @@ internal sealed class TolerantStringConverter : JsonConverter<string>
 
     public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value);
+}
+
+/// <summary>
+/// Reads model-authored dates in whatever format the model chose — ISO 8601 first, then the broad set of
+/// human/OCR formats receipt extractions actually emit: US ("05/31/2026", "May 31, 2026"), European
+/// dotted/day-first ("19.08.2025", "31/05/2025 20:11"), localized ("… Uhr"), "at"-joined, and
+/// timezone-suffixed forms — instead of failing the whole completion on a strict-ISO mismatch. This
+/// restores the multi-format tolerance of the pre-AgentKit <c>core.AI.NormalizationDateParser</c> chain
+/// the receipt pipeline used to run behind. Unparseable text coerces to null (nullable) or default
+/// (non-nullable), matching the swallow-don't-throw philosophy of <see cref="TolerantEnumConverterFactory"/>.
+/// Writes round-trip "o" format.
+/// </summary>
+internal sealed partial class TolerantDateTimeConverterFactory : JsonConverterFactory
+{
+    public override bool CanConvert(Type typeToConvert) =>
+        typeToConvert == typeof(DateTime) || typeToConvert == typeof(DateTime?);
+
+    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
+        typeToConvert == typeof(DateTime)
+            ? new TolerantDateTimeConverter()
+            : new TolerantNullableDateTimeConverter();
+
+    // ISO is tried first (via TryGetDateTime); this explicit set follows. The lower block restores the
+    // legacy NormalizationDateParser formats — a strict US/ISO-only read silently dropped these (→ null
+    // Date) or mis-parsed a day-first date month-first ("06/07/2025 20:11" → June 7 instead of July 6),
+    // corrupting the stored receipt date. Day-first slash forms are intentionally biased day-first here,
+    // exactly as the legacy parser was, to match what production has always accepted.
+    private static readonly string[] Formats =
+    [
+        // Date-only, US/ISO
+        "yyyy-MM-dd", "MM/dd/yyyy", "M/d/yyyy", "MM-dd-yyyy", "yyyy/MM/dd", "yyyyMMdd",
+        "MMMM d, yyyy", "MMM d, yyyy", "d MMMM yyyy", "d MMM yyyy", "MM/dd/yy", "M/d/yy",
+        // Legacy multi-format (day-first slashes/dots, OCR meridiem, "at", timezone literal)
+        "MMMddyy hh:mmtt",                     // Feb24'17 03:28PM (apostrophes stripped first)
+        "dd-MMM-yyyy h:mm:sstt",               // 02-Dec-2024 5:00:21P → …PM
+        "dd.MM.yyyy HH:mm",                    // 31.05.2023 20:50
+        "dd/MM/yyyy HH:mm",                    // 31/05/2025 20:11
+        "dd/MM/yyyy HH:mm:ss",                 // 18/09/2025 11:50:22
+        "dd/MM/yyyy HH.mm",                    // 01/06/2025 18.41
+        "dd/MMM/yyyy HH:mm:ss",                // 12/sep/2025 16:43:02 (after sept→sep)
+        "dd.MM.yyyy HH:mm:ss",                 // 27.08.2025 12:38:32
+        "dd/MM/yy HH:mm",                      // 17/03/23 08:10
+        "yyyy-MM-dd 'at' h.mm.ss tt",          // 2025-08-20 at 8.55.19 AM
+        "yyyy-MM-dd 'at' h.mm tt",             // 2025-08-20 at 8.55 AM
+        "dd-MM-yyyy HH:mm",                    // 20-08-2025 16:01
+        "dd.MM.yyyy",                          // 19.08.2025
+        "MMMM d, yyyy 'at' hh:mm:ss tt 'PDT'", // July 3, 2024 at 11:00:14 AM PDT
+        "MMMM d, yyyy 'at' hh:mm:ss tt",       // …without the tz literal
+    ];
+
+    internal static DateTime? ParseTolerant(ref Utf8JsonReader reader)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            reader.Skip();
+            return null;
+        }
+        if (reader.TryGetDateTime(out var iso))
+        {
+            return iso;
+        }
+        var text = reader.GetString();
+        return string.IsNullOrWhiteSpace(text) ? null : ParseText(text);
+    }
+
+    // Normalize the OCR/localized quirks the legacy parser handled, then match the explicit formats, then a
+    // last-resort invariant parse. Self-contained so AgentKit keeps no dependency on core.
+    private static DateTime? ParseText(string raw)
+    {
+        var text = UhrSuffix().Replace(raw.Trim(), string.Empty)  // strip a trailing " Uhr" (German receipts)
+            .Replace("'", string.Empty);                          // Feb24'17 → Feb2417
+        text = SeptToken().Replace(text, "sep");                  // 12/sept/2025 → 12/sep/2025
+        var paren = text.IndexOf('(');
+        if (paren > 0)
+        {
+            text = text[..paren].Trim();                          // "19.08.2025 (See note)" → "19.08.2025"
+        }
+        if (SingleLetterMeridiem().IsMatch(text))
+        {
+            text += "M";                                          // "5:00:21P" → "5:00:21PM"
+        }
+
+        if (DateTime.TryParseExact(text, Formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact))
+        {
+            return exact;
+        }
+        return DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var loose) ? loose : null;
+    }
+
+    [GeneratedRegex(@"\s+Uhr$", RegexOptions.IgnoreCase)]
+    private static partial Regex UhrSuffix();
+
+    [GeneratedRegex(@"\bsept\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SeptToken();
+
+    [GeneratedRegex("[0-9][APap]$")]
+    private static partial Regex SingleLetterMeridiem();
+
+    private sealed class TolerantNullableDateTimeConverter : JsonConverter<DateTime?>
+    {
+        public override DateTime? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            ParseTolerant(ref reader);
+
+        public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)
+        {
+            if (value is null)
+            {
+                writer.WriteNullValue();
+            }
+            else
+            {
+                writer.WriteStringValue(value.Value.ToString("o"));
+            }
+        }
+    }
+
+    private sealed class TolerantDateTimeConverter : JsonConverter<DateTime>
+    {
+        public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            ParseTolerant(ref reader) ?? default;
+
+        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(value.ToString("o"));
+    }
+}
+
+/// <summary>
+/// Numeric fields coerce instead of throwing: a value that overflows the target type (an OCR'd 50-digit
+/// "total") or an unparseable numeric string reads as null (nullable) or 0/default rather than faulting the
+/// whole completion; a quoted number is accepted too. Ports the deleted <c>core.AI.ForgivingJsonParsing</c>
+/// "safe" converters into AgentKit, with the same swallow-don't-throw posture as the tolerant
+/// enum/string/date converters. Only applies to <see cref="AgentJson.Options"/> (model-authored payloads).
+/// </summary>
+internal sealed class SafeNullableDecimalConverter : JsonConverter<decimal?>
+{
+    public override decimal? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+            case JsonTokenType.Number:
+                return reader.TryGetDecimal(out var n) ? n : null;
+            case JsonTokenType.String:
+                return decimal.TryParse(reader.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var s) ? s : null;
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, decimal? value, JsonSerializerOptions options)
+    {
+        if (value.HasValue) { writer.WriteNumberValue(value.Value); }
+        else { writer.WriteNullValue(); }
+    }
+}
+
+internal sealed class SafeDecimalConverter : JsonConverter<decimal>
+{
+    public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Number:
+                return reader.TryGetDecimal(out var n) ? n : 0m;
+            case JsonTokenType.String:
+                return decimal.TryParse(reader.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var s) ? s : 0m;
+            default:
+                reader.Skip();
+                return 0m;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options) =>
+        writer.WriteNumberValue(value);
+}
+
+internal sealed class SafeNullableIntConverter : JsonConverter<int?>
+{
+    public override int? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+            case JsonTokenType.Number:
+                return reader.TryGetInt32(out var n) ? n : null;
+            case JsonTokenType.String:
+                return int.TryParse(reader.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var s) ? s : null;
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, int? value, JsonSerializerOptions options)
+    {
+        if (value.HasValue) { writer.WriteNumberValue(value.Value); }
+        else { writer.WriteNullValue(); }
+    }
+}
+
+internal sealed class SafeIntConverter : JsonConverter<int>
+{
+    public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Number:
+                return reader.TryGetInt32(out var n) ? n : 0;
+            case JsonTokenType.String:
+                return int.TryParse(reader.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var s) ? s : 0;
+            default:
+                reader.Skip();
+                return 0;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) =>
+        writer.WriteNumberValue(value);
 }

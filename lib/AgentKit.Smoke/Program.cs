@@ -207,9 +207,9 @@ async Task<int> Vision()
 {
     var client = factory.GetClient(catalog.Get(modelId));
     Console.WriteLine($"── vision @ {modelId} ──");
-    // 4x4 solid red PNG.
+    // 64x64 solid red PNG (some Azure OpenAI resources reject tiny 4x4 images as invalid).
     var redPng = Convert.FromBase64String(
-        "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEklEQVR4nGP8z4AATAxIgGwOAE9+AR9v0KVJAAAAAElFTkSuQmCC");
+        "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAACHSURBVHhe7dAhAQAADITA719681QAcQbJbjuzMdg0gMGmAQw2DWCwaQCDTQMYbBrAYNMABpsGMNg0gMGmAQw2DWCwaQCDTQMYbBrAYNMABpsGMNg0gMGmAQw2DWCwaQCDTQMYbBrAYNMABpsGMNg0gMGmAQw2DWCwaQCDTQMYbBrAYNMABpsHQ4jh0hEeUY0AAAAASUVORK5CYII=");
     var response = await client.GetResponseAsync(
         [new ChatMessage(ChatRole.User, [new TextContent("What solid color is this image? One word."), new DataContent(redPng, "image/png")])]);
     Console.WriteLine(response.Text);

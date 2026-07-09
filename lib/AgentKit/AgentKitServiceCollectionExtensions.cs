@@ -41,11 +41,13 @@ public static class AgentKitServiceCollectionExtensions
                 _ => NullCompletionSink.Instance,
             };
         });
+        services.TryAddSingleton<IImageStore>(NullImageStore.Instance);
         services.TryAddSingleton<IChatClientFactory>(sp => new ChatClientFactory(
             sp.GetRequiredService<IOptions<LlmOptions>>(),
             sp.GetRequiredService<ICompletionSink>(),
             sp.GetRequiredService<ILlmDiagnostics>(),
-            sp.GetService<ILoggerFactory>()));
+            sp.GetService<ILoggerFactory>(),
+            sp.GetService<IImageStore>()));
         services.TryAddSingleton<ILlmClient, LlmClient>();
         services.TryAddSingleton<AgentRunner>(sp => new AgentRunner(
             sp.GetRequiredService<IModelRouter>(),

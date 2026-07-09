@@ -51,6 +51,29 @@ public sealed class LlmClientTests
     }
 
     [Fact]
+    public async Task CompleteJsonAsync_Generic_NoJsonInReply_Throws()
+    {
+        // A refusal / unreadable-input reply carries no JSON. The typed overload must fail loudly (so the
+        // caller's retry/error handling runs) rather than deserialize "{}" into a silently blank result.
+        var fake = new FakeChatClient().EnqueueText("I could not read this receipt.");
+
+        var ex = await Assert.ThrowsAsync<LlmNoJsonException>(() =>
+            Client(fake).CompleteJsonAsync<Payload>(LlmWay.Low, "receipt", "sys", "user"));
+        Assert.Equal("receipt", ex.Feature);
+    }
+
+    [Fact]
+    public async Task CompleteJsonAsync_Generic_ExplicitEmptyObject_DoesNotThrow()
+    {
+        // A model that genuinely returns {} is a valid (if empty) payload, distinct from no JSON at all.
+        var fake = new FakeChatClient().EnqueueText("{}");
+
+        var result = await Client(fake).CompleteJsonAsync<Payload>(LlmWay.Low, "test", "sys", "user");
+
+        Assert.Null(result.Name);
+    }
+
+    [Fact]
     public async Task SystemPromptRidesInstructions_AndImagesRideAsDataContent()
     {
         var fake = new FakeChatClient().EnqueueText("ok");

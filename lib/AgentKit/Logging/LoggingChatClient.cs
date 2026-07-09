@@ -10,8 +10,10 @@ namespace AgentKit.Logging;
 
 /// <summary>Per-model decorator that turns every completion (streaming or not) into one
 /// <see cref="CompletionRecord"/>: route, request, response, usage, cost (from the ModelCard's prices),
-/// latency, and error. Sink failures are logged and swallowed — logging can never fault a turn.</summary>
-public sealed class LoggingChatClient(IChatClient inner, ModelCard card, ICompletionSink sink, ILogger? logger = null)
+/// latency, and error. Sink failures are logged and swallowed — logging can never fault a turn.
+/// An optional <see cref="IImageStore"/> receives each image's bytes at hash time so hosts can keep
+/// vision logs replayable (bytes never reach sinks — only the <c>sha256:…</c> reference does).</summary>
+public sealed class LoggingChatClient(IChatClient inner, ModelCard card, ICompletionSink sink, ILogger? logger = null, IImageStore? imageStore = null)
     : DelegatingChatClient(inner)
 {
     public override async Task<ChatResponse> GetResponseAsync(
@@ -186,8 +188,9 @@ public sealed class LoggingChatClient(IChatClient inner, ModelCard card, IComple
         }
     }
 
-    /// <summary>Flattens one message for the log — text as-is, images replaced by content hashes.</summary>
-    private static string Render(ChatMessage message)
+    /// <summary>Flattens one message for the log — text as-is, images replaced by content hashes
+    /// (with the bytes offered to the optional <see cref="IImageStore"/> at that moment).</summary>
+    private string Render(ChatMessage message)
     {
         if (message.Contents.Count == 1 && message.Contents[0] is TextContent only)
         {
@@ -202,7 +205,17 @@ public sealed class LoggingChatClient(IChatClient inner, ModelCard card, IComple
                     parts.Add(text.Text);
                     break;
                 case DataContent data:
-                    parts.Add($"[{data.MediaType} sha256:{Convert.ToHexStringLower(SHA256.HashData(data.Data.Span))}]");
+                    var sha256 = Convert.ToHexStringLower(SHA256.HashData(data.Data.Span));
+                    try
+                    {
+                        imageStore?.Persist(sha256, data.MediaType, data.Data);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Same posture as the sink: persistence may degrade, never fault a turn.
+                        logger?.LogWarning(ex, "Image store failed for sha256:{Sha256}; the turn continues", sha256);
+                    }
+                    parts.Add($"[{data.MediaType} sha256:{sha256}]");
                     break;
                 case UriContent uri:
                     parts.Add($"[{uri.MediaType} {uri.Uri}]");

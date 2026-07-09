@@ -15,8 +15,17 @@ public enum ModelTier
 public sealed record ModelCard
 {
     /// <summary>The model/deployment id as the provider knows it (e.g. <c>gpt-chat-latest</c>,
-    /// <c>kimi-k2.6</c>). For Azure OpenAI this is the deployment name.</summary>
+    /// <c>kimi-k2.6</c>). For Azure OpenAI this is the deployment name. When two catalog entries
+    /// target the same upstream model (e.g. through different providers/keys), give each a unique
+    /// Id and set <see cref="UpstreamModel"/> to the real name.</summary>
     public string Id { get; init; } = "";
+
+    /// <summary>The model name actually sent to the provider, when it differs from <see cref="Id"/>.
+    /// Null (the default) means <see cref="Id"/> is the upstream name.</summary>
+    public string? UpstreamModel { get; init; }
+
+    /// <summary>What providers should request from the API.</summary>
+    public string ApiModel => string.IsNullOrWhiteSpace(UpstreamModel) ? Id : UpstreamModel;
 
     /// <summary>The provider key this model is served by (matches a <c>Llm:Providers</c> entry).</summary>
     public string Provider { get; init; } = "";

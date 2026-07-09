@@ -15,7 +15,8 @@ public sealed class ChatClientFactory(
     IOptions<LlmOptions> options,
     ICompletionSink sink,
     ILlmDiagnostics diagnostics,
-    ILoggerFactory? loggerFactory = null) : IChatClientFactory
+    ILoggerFactory? loggerFactory = null,
+    IImageStore? imageStore = null) : IChatClientFactory
 {
     // Lazy so a first-use race can't run Build twice and orphan an undisposed client stack
     // (GetOrAdd's value factory is not atomic).
@@ -40,7 +41,7 @@ public sealed class ChatClientFactory(
             var kind => throw new InvalidOperationException(
                 $"Provider '{card.Provider}' has unknown kind '{kind}' (expected azure-openai or openai-compat)."),
         };
-        var logging = new LoggingChatClient(inner, card, sink, loggerFactory?.CreateLogger<LoggingChatClient>());
+        var logging = new LoggingChatClient(inner, card, sink, loggerFactory?.CreateLogger<LoggingChatClient>(), imageStore);
         return new CapabilityGateChatClient(logging, card);
     }
 }
