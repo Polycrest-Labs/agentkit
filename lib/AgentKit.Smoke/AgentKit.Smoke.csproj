@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentKit.Smoke</RootNamespace>
+    <AssemblyName>AgentKit.Smoke</AssemblyName>
+    <!-- Reads web's dev user-secrets (Foundry endpoint/key, provider keys) for live checks. -->
+    <UserSecretsId>vacadock-web</UserSecretsId>
+    <NoWarn>$(NoWarn);OPENAI001;AOAI001;MEAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentKit\AgentKit.csproj" />
+  </ItemGroup>
+
+</Project>
