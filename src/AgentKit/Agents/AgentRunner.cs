@@ -245,7 +245,7 @@ public sealed class AgentRunner(IModelRouter router, IChatClientFactory factory,
                     m.Text));
             }
         }
-        if (request.Images.Count == 0)
+        if (request.Images.Count == 0 && request.Documents.Count == 0)
         {
             messages.Add(new ChatMessage(ChatRole.User, request.UserText));
         }
@@ -253,6 +253,7 @@ public sealed class AgentRunner(IModelRouter router, IChatClientFactory factory,
         {
             var contents = new List<AIContent> { new TextContent(request.UserText) };
             contents.AddRange(request.Images.Select(i => new DataContent(i.Bytes, i.MediaType)));
+            contents.AddRange(request.Documents.Select(d => new DataContent(d.Bytes, d.MediaType) { Name = d.Name }));
             messages.Add(new ChatMessage(ChatRole.User, contents));
         }
         return messages;

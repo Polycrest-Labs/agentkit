@@ -11,6 +11,14 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ---
 
+## [0.2.0] — pending
+
+Entry 10 (document input on the request surface). Additive over 0.1.0 per the
+two-consumer compat rule (vacadock stays on 0.1.0 untouched; upgrading is a recompile,
+not a rewrite).
+
+---
+
 ## [0.1.0] — first NuGet release (2026-07-09)
 
 Everything below, merged: entries 0–8 (hsa) + the vacadock Gemini native provider,
@@ -174,3 +182,34 @@ Three-way merged from the common baseline (vacadock `b21897e`, the copy point):
   `tests/AgentKit.Tests`; Smoke reads `agentkit-smoke` user-secrets; packaging metadata
   added (`Polycrest.AgentKit`, MIT); publish via GitHub Actions Trusted Publishing,
   mirroring polyauth.
+
+### 10. Document (PDF) input on the request surface (2026-08-04)
+
+The first consumer-driven 0.2.0 change: Groundsworth's seam retirement moves its
+base64-PDF classification/extraction flows onto the library, which had `Images` only.
+Everything is additive; the plumbing is the exact path images already ride
+(`DataContent` is media-type-agnostic, and Microsoft.Extensions.AI.OpenAI 10.6.0 maps
+`application/pdf` parts to Responses `input_file` items with the part's `Name` as the
+filename).
+
+- `LlmDocument(MediaType, Bytes, Name?)` beside `LlmImage`; `AgentTurnRequest.Documents`
+  beside `Images`; both assemble as `DataContent` parts on the user message (documents
+  carry `DataContent.Name` for the provider-side filename).
+- **Interface note for external `ILlmClient` implementors**: the three `ILlmClient`
+  methods gain an optional `IReadOnlyList<LlmDocument>? documents = null` parameter
+  before `ct`. Source-compatible for callers (named `ct:` arguments unaffected);
+  external *implementations* must add the parameter when they recompile against 0.2.0.
+- `ModelCard.Documents` (default false), config-bound from `Llm:Models` like
+  `Vision`/`Search`; `LlmWay` gains a `Documents` requirement flag (+ `LowDocuments`/
+  `HighDocuments` presets, `"+documents"` in the way label) and the router filters to
+  documents-capable cards exactly as Vision does.
+- **Gate decision — documents refuse loudly, deliberately diverging from the silent
+  reconcile idiom**: `CapabilityGateChatClient` throws a typed
+  `DocumentsNotSupportedException` (naming the card and media type) when a non-image
+  `DataContent` reaches a card without `Documents`. Search tools and temperature still
+  drop silently — a dropped search degrades an answer; a dropped document turns an
+  extraction into confident hallucination over no input.
+- Completion logging needed no change: the `DataContent` branch already logs
+  `[{mediaType} sha256:…]` stubs (bytes only to the host's `IImageStore`), so document
+  bytes never reach sinks.
+- Upstream intent: n/a — this IS upstream now.

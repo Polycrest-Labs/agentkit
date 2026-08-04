@@ -21,6 +21,12 @@ public sealed record AgentTurnRequest
     /// <summary>Images attached to the current user message (vision input).</summary>
     public IReadOnlyList<LlmImage> Images { get; init; } = [];
 
+    /// <summary>Documents (typically PDFs) attached to the current user message. They ride the same
+    /// content channel as <see cref="Images"/>; route with a Documents way (see
+    /// <see cref="LlmWay.Documents"/>) so only documents-capable cards resolve — an incapable card
+    /// refuses loudly at the capability gate.</summary>
+    public IReadOnlyList<LlmDocument> Documents { get; init; } = [];
+
     public required AgentToolCatalog Tools { get; init; }
 
     /// <summary>Routing requirements. Search is expressed via <c>AgentRunnerOptions.EnableWebSearch</c>

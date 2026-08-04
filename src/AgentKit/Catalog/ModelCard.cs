@@ -37,6 +37,12 @@ public sealed record ModelCard
     /// <summary>Accepts image input.</summary>
     public bool Vision { get; init; }
 
+    /// <summary>Accepts document (PDF) file input. Provider-side each page is rendered to an image AND
+    /// its text extracted (both enter the prompt), so this generally requires a vision-capable
+    /// deployment; set it only where file input is verified to work. A documents-carrying request
+    /// against a card without this flag fails loudly at the capability gate — never a silent drop.</summary>
+    public bool Documents { get; init; }
+
     /// <summary>Supports server-side web search (Azure hosted <c>web_search</c>, or Gemini grounding).</summary>
     public bool Search { get; init; }
 

@@ -20,7 +20,7 @@ public sealed class CapabilityTierRouter(IModelCatalog catalog, IOptions<LlmOpti
 
         var opts = options.Value;
         var capable = catalog.Models
-            .Where(m => (!way.Vision || m.Vision) && (!way.Search || m.Search))
+            .Where(m => (!way.Vision || m.Vision) && (!way.Search || m.Search) && (!way.Documents || m.Documents))
             .Where(m => opts.Providers.GetValueOrDefault(m.Provider)?.IsConfigured == true)
             .ToList();
         if (capable.Count == 0)
@@ -57,6 +57,10 @@ public sealed class CapabilityTierRouter(IModelCatalog catalog, IOptions<LlmOpti
         if (m.Search)
         {
             caps.Add("search");
+        }
+        if (m.Documents)
+        {
+            caps.Add("documents");
         }
         return $"{m.Id} ({string.Join("+", caps)})";
     }
