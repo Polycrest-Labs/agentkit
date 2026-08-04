@@ -1,0 +1,58 @@
+name: CI
+
+# The push/PR test lane — the maintenance floor's one real gap until 2026-08-04:
+# tests used to run only inside the release workflow, so nothing guarded the branch
+# between releases. Smoke (AgentKit.Smoke) stays OUT of CI: it needs live provider
+# keys and runs manually before each cut.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    name: Build + test (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore AgentKit.slnx
+
+      - name: Build
+        run: dotnet build AgentKit.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/AgentKit.Tests/AgentKit.Tests.csproj --configuration Release --no-build
+
+  ui:
+    name: Build + test (agentkit-ui)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install
+        run: npm --prefix ui ci
+
+      - name: Build
+        run: npm --prefix ui run build
+
+      - name: Test
+        run: npm --prefix ui test
