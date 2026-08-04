@@ -13,7 +13,8 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ## [0.2.0] — pending
 
-Entry 10 (document input on the request surface). Additive over 0.1.0 per the
+Entries 10 (document input on the request surface), 11 (the ui/ workspace —
+first npm publish of `@polycrestlabs/agentkit-ui`). Additive over 0.1.0 per the
 two-consumer compat rule (vacadock stays on 0.1.0 untouched; upgrading is a recompile,
 not a rewrite).
 
@@ -213,3 +214,36 @@ filename).
   `[{mediaType} sha256:…]` stubs (bytes only to the host's `IImageStore`), so document
   bytes never reach sinks.
 - Upstream intent: n/a — this IS upstream now.
+
+### 11. The ui/ workspace — @polycrestlabs/agentkit-ui (2026-08-04)
+
+The chat kit becomes the library's UI half (one repo, one version, one CHANGELOG),
+per the 2026-08-04 rulings: an ng-packagr Angular library at `ui/`, published as
+`@polycrestlabs/agentkit-ui`, Angular ^22 + rxjs as peerDependencies (the kit never
+pins a host's Angular), `marked`/`tslib` as its only hard deps.
+
+- **Provenance**: the aws chat kit at tip `28131fd` — `chat-types.ts` (→ `src/lib/sse.ts`,
+  near-verbatim parseFrame/readSseStream/httpErrorMessage), `chat-turn.ts` (→
+  `src/lib/turn-state.ts`, the state machine incl. the tip's attachment-upload state),
+  `chat-rail.ts` (→ `src/lib/chat-rail.ts`), `markdown.pipe.ts` (→ `agentMarkdown`).
+  `chat-transport.ts` dissolved into `src/lib/tokens.ts`.
+- **The two couplings, cut** (doc #1's 2026-07-20 ruling): `AGENT_TRANSPORT` is a
+  required injection slot with a minimal core — `streamTurn(body, onFrame, signal?)`;
+  chat CRUD (`AgentChatCapable`) and attachment upload (`AgentAttachmentCapable`) are
+  optional capabilities — and `AGENT_CONFIRM` is an optional slot with a package-owned
+  `BuiltInAgentConfirm` default.
+- **The core event union IS the Groundsworth frame vocabulary** —
+  `loaded · suggestion · changeset · heartbeat · error` (`src/lib/frames.ts`), typed
+  from what the server already emits rather than a second protocol; unknown types fall
+  through `onDomainFrame`. `heartbeat` is first-class and consumed internally as a
+  liveness signal (dead-air timeout, default 90 s, → error state exactly once — silence
+  is failure, matching the server's terminal-error convention); it is never rendered.
+  Refusals: `AgentTurnRefusal{status}` maps 409 → busy line, 503 → latched
+  `unavailable`. Abort is a quiet teardown.
+- Tests: vitest + jsdom (`npm test`) — frame round-trips, malformed-block tolerance,
+  chunk reassembly, turn-state transitions (done / refusals / dead-air-exactly-once /
+  abort-quietly / domain fall-through), attachment gating (send refused while uploads
+  are in flight, `source` assets never ride, joined-chip removal).
+- Deliberately NOT shipped at 0.2.0: the change-review window (no consuming surface
+  until Report Studio) and token/tool stream frames (the consuming lane does not
+  stream tokens; behavior-identical is its bar).
