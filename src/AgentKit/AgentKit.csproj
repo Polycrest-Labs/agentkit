@@ -13,12 +13,12 @@
          NU5104: Azure.AI.OpenAI has no stable release yet (see README version-pairing gotcha). -->
     <NoWarn>$(NoWarn);NU1902;NU1903;OPENAI001;AOAI001;MEAI001;CS1591;NU5104</NoWarn>
     <PackageId>Polycrest.AgentKit</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Hank Beasley</Authors>
     <Description>Config-driven LLM model catalog + router, providers (Azure OpenAI Responses, OpenAI-compatible endpoints, Gemini native), per-hop completion logging with replayable vision images, failover + alerting, tolerant one-shot JSON completions, and a provider-agnostic streaming agent loop with function tools — built on Microsoft.Extensions.AI.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>ai;llm;agents;openai;azure-openai;gemini;microsoft-extensions-ai;model-router;failover;function-calling</PackageTags>
-    <PackageReleaseNotes>Initial NuGet package: the merged AgentKit line from the vacadock and hsa repos (see CHANGELOG.md).</PackageReleaseNotes>
+    <PackageReleaseNotes>0.2.0: document (PDF) input on the request surface (LlmDocument, AgentTurnRequest.Documents, ModelCard.Documents + LlmWay.Documents routing, loud capability-gate refusal), plus the first npm publish of the UI half (@polycrestlabs/agentkit-ui) and a push/PR CI lane. Additive over 0.1.0 (see CHANGELOG.md entries 10-12).</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Polycrest-Labs/agentkit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Polycrest-Labs/agentkit</RepositoryUrl>

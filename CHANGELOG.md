@@ -11,12 +11,24 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ---
 
-## [0.2.0] — pending
+## [0.2.0] — document input + the UI half + a CI lane (2026-08-04)
 
 Entries 10 (document input on the request surface), 11 (the ui/ workspace —
-first npm publish of `@polycrestlabs/agentkit-ui`). Additive over 0.1.0 per the
-two-consumer compat rule (vacadock stays on 0.1.0 untouched; upgrading is a recompile,
-not a rewrite).
+first npm publish of `@polycrestlabs/agentkit-ui`), and the push/PR CI test
+workflow (`.github/workflows/ci.yml`: dotnet build+test and ui build+test on
+every push/PR — until now tests ran only inside the release workflow).
+Additive over 0.1.0 per the two-consumer compat rule (vacadock stays on 0.1.0
+untouched; upgrading is a recompile, not a rewrite).
+
+Cut checks, 2026-08-04: `AgentKit.Tests` 104 green · ui vitest 19 green · CI
+run 30957107775 green on both jobs. The standard `AgentKit.Smoke` was skipped
+on the cutting machine (no `agentkit-smoke` user-secrets; its baked-in catalog
+names deployments the available Azure resource does not host) — instead the
+NEW surface got a live proof: a one-page PDF through
+`ILlmClient.CompleteAsync(documents:)` → `AzureOpenAIProvider` (Responses,
+`gpt-4o-mini` deployment) returned the document's embedded marker text
+verbatim, confirming the M.E.AI `DataContent(application/pdf)` →
+`input_file` mapping end-to-end.
 
 ---
 

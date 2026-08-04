@@ -16,8 +16,15 @@ Repo layout:
 | Path | What it is |
 | --- | --- |
 | `src/AgentKit/` | The library — ships as the `Polycrest.AgentKit` package (namespace `AgentKit`). |
+| `ui/` | The UI half — the Angular conversation kit, ships as `@polycrestlabs/agentkit-ui` on npm (see `ui/README.md`). |
 | `smoke/AgentKit.Smoke/` | Console for live provider checks (`chat` / `tool` / `search` / `vision` / `models`). |
 | `tests/AgentKit.Tests/` | Unit tests. |
+
+Both halves version together — one repo, one CHANGELOG, one version number — so a host
+never reasons about a .NET/UI version matrix. Compat stance: within 0.x, changes stay
+**additive** wherever feasible (the two-consumer rule: a host pinned to an older version
+upgrades by recompiling, not by rewriting call sites); anything sharper is called out in
+the CHANGELOG entry.
 
 ## Getting started
 
@@ -54,8 +61,11 @@ builder.Services.AddAgentKit(builder.Configuration, o =>
     "neuralwatt": { "Kind": "openai-compat", "Endpoint": "https://api.neuralwatt.com/v1" }
   },
   "Models": [
+    // Documents: the card accepts PDF file input (generally needs a vision-capable deployment;
+    // set it only where file input is verified — a documents request against a card without it
+    // fails loudly at the capability gate, never a silent drop).
     { "Id": "gpt-chat-latest", "Provider": "foundry", "Tier": "High", "Vision": true, "Search": true,
-      "Quirks": { "FixedTemperature": true } },
+      "Documents": true, "Quirks": { "FixedTemperature": true } },
     { "Id": "qwen3.6-35b", "Provider": "neuralwatt", "Tier": "Low", "Vision": true,
       "ContextK": 131, "PriceInPerMtok": 0.29, "PriceOutPerMtok": 1.15 },
     // Two catalog entries can share one upstream model (a search-on variant, an A/B key/region):
@@ -84,6 +94,7 @@ resolves it against the catalog + preference order:
 ```csharp
 LlmWay.Low            // cheap text
 LlmWay.LowVision      // cheap + image input required
+LlmWay.LowDocuments   // cheap + document (PDF) input required
 LlmWay.High           // the good stuff
 new LlmWay(ModelTier.High, Vision: true, Search: true)
 ```
@@ -101,7 +112,7 @@ public sealed class MyExtractor(ILlmClient llm)
     {
         // feature tag ("booking-extract") labels every CompletionRecord for this call
         var result = await llm.CompleteJsonAsync<Candidate[]>(
-            LlmWay.LowVision, "booking-extract", SystemPrompt, text, images: null, ct);
+            LlmWay.LowVision, "booking-extract", SystemPrompt, text, images: null, ct: ct);
         return result;
     }
 }
@@ -114,6 +125,12 @@ public sealed class MyExtractor(ILlmClient llm)
   Throws `LlmNoJsonException` when the reply carries no JSON at all (refusal, content filter, prose) so
   retry policies engage instead of persisting a blank DTO.
 - Pass images as `LlmImage(mediaType, bytes)` — remember to use a `Vision: true` way.
+- Pass documents as `LlmDocument(mediaType, bytes, name?)` via the `documents:` parameter — use a
+  `Documents: true` way so routing only resolves documents-capable cards. Cost model: providers
+  render each page to an image AND extract its text (~1–2k tokens/page, caps around 100 pages /
+  32 MB), so **page strategy is the host's job** — send the pages a feature needs, not the file
+  because it exists. A documents request reaching a card without `Documents` throws a typed
+  `DocumentsNotSupportedException` rather than silently dropping the attachment.
 
 ## The agent loop: `AgentRunner`
 
