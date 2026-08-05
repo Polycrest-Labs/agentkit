@@ -10,7 +10,7 @@ public sealed class UpstreamModelTests
     [Fact]
     public void ApiModel_FallsBackToId_WhenNoUpstreamModel()
     {
-        Assert.Equal("kimi-k2.6", new ModelCard { Id = "kimi-k2.6" }.ApiModel);
+        Assert.Equal("kimi-k3", new ModelCard { Id = "kimi-k3" }.ApiModel);
     }
 
     [Fact]

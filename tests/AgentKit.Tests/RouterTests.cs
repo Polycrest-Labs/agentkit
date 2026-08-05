@@ -19,7 +19,7 @@ public sealed class RouterTests
 
         Assert.Equal("gpt-chat-latest", resolution.Model.Id);
         // Prefer list first (gpt-5-mini), then remaining capable models cheapest-first.
-        Assert.Equal(["gpt-5-mini", "qwen3.6-35b", "kimi-k2.6", "glm-5.2"], resolution.Fallbacks.Select(f => f.Id));
+        Assert.Equal(["gpt-5-mini", "qwen3.6-35b", "glm-5.2", "kimi-k3"], resolution.Fallbacks.Select(f => f.Id));
     }
 
     [Fact]

@@ -23,7 +23,7 @@ public static class TestCatalog
         [
             new ModelCard { Id = "gpt-chat-latest", Provider = "foundry", Tier = ModelTier.High, Vision = true, Search = true, Quirks = new ModelQuirks { FixedTemperature = true } },
             new ModelCard { Id = "gpt-5-mini", Provider = "foundry", Tier = ModelTier.Low, Vision = true, Search = true },
-            new ModelCard { Id = "kimi-k2.6", Provider = "neuralwatt", Tier = ModelTier.High, Vision = true, PriceInPerMtok = 0.69m, PriceOutPerMtok = 3.22m },
+            new ModelCard { Id = "kimi-k3", Provider = "neuralwatt", Tier = ModelTier.High, Vision = true, PriceInPerMtok = 3.00m, PriceOutPerMtok = 15.00m },
             new ModelCard { Id = "qwen3.6-35b", Provider = "neuralwatt", Tier = ModelTier.Low, Vision = true, PriceInPerMtok = 0.29m, PriceOutPerMtok = 1.15m },
             new ModelCard { Id = "glm-5.2", Provider = "neuralwatt", Tier = ModelTier.High, PriceInPerMtok = 1.45m, PriceOutPerMtok = 4.50m },
         ]);

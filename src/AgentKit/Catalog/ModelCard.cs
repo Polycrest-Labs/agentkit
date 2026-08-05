@@ -15,7 +15,7 @@ public enum ModelTier
 public sealed record ModelCard
 {
     /// <summary>The catalog key — unique per card, and the id the pipeline routes/pins/logs by (e.g.
-    /// <c>gpt-chat-latest</c>, <c>kimi-k2.6</c>). Usually also the provider's model/deployment id, unless
+    /// <c>gpt-chat-latest</c>, <c>kimi-k3</c>). Usually also the provider's model/deployment id, unless
     /// <see cref="UpstreamModel"/> overrides it. For Azure OpenAI this is the deployment name.</summary>
     public string Id { get; init; } = "";
 
