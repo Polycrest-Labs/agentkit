@@ -13,12 +13,12 @@
          NU5104: Azure.AI.OpenAI has no stable release yet (see README version-pairing gotcha). -->
     <NoWarn>$(NoWarn);NU1902;NU1903;OPENAI001;AOAI001;MEAI001;CS1591;NU5104</NoWarn>
     <PackageId>Polycrest.AgentKit</PackageId>
-    <Version>0.2.1</Version>
+    <Version>0.3.0</Version>
     <Authors>Hank Beasley</Authors>
-    <Description>Config-driven LLM model catalog + router, providers (Azure OpenAI Responses, OpenAI-compatible endpoints, Gemini native), per-hop completion logging with replayable vision images, failover + alerting, tolerant one-shot JSON completions, and a provider-agnostic streaming agent loop with function tools — built on Microsoft.Extensions.AI.</Description>
+    <Description>Config-driven LLM model catalog + router, providers (Azure OpenAI Responses, OpenAI Responses, OpenAI-compatible endpoints, Gemini native), per-hop completion logging with replayable vision images, failover + alerting, tolerant one-shot JSON completions, and a provider-agnostic streaming agent loop with function tools — built on Microsoft.Extensions.AI.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>ai;llm;agents;openai;azure-openai;gemini;microsoft-extensions-ai;model-router;failover;function-calling</PackageTags>
-    <PackageReleaseNotes>0.2.1: AgentRunner Completed now carries only the final model hop's full text; text from earlier tool-call hops still streams as TokenDelta and remains in conversation history. Restores closing-message compatibility for Groundsworth and other hosts that persist one terminal answer.</PackageReleaseNotes>
+    <PackageReleaseNotes>0.3.0: new openai-responses provider kind — the OpenAI platform Responses API, the only path where OpenAI permits function tools TOGETHER WITH reasoning (chat completions refuses the combination on newer models such as gpt-5.6-luna). Additive: existing azure-openai/openai-compat/gemini-native configs are unchanged.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Polycrest-Labs/agentkit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Polycrest-Labs/agentkit</RepositoryUrl>

@@ -52,13 +52,19 @@ builder.Services.AddAgentKit(builder.Configuration, o =>
 ```jsonc
 "Llm": {
   "Providers": {
-    // kind: "azure-openai"  (Responses API; ApiKey optional — token credential otherwise)
-    //       "openai-compat" (any OpenAI-compatible chat endpoint; ApiKey required)
-    //       "gemini-native" (Gemini's generateContent API; ApiKey required — the path that
-    //                        supports Search grounding, unlike Gemini's openai-compat endpoint)
-    "foundry":    { "Kind": "azure-openai",  "Endpoint": "https://<acct>.openai.azure.com/" },
-    "gemini":     { "Kind": "gemini-native", "Endpoint": "https://generativelanguage.googleapis.com/v1beta/" },
-    "neuralwatt": { "Kind": "openai-compat", "Endpoint": "https://api.neuralwatt.com/v1" }
+    // kind: "azure-openai"     (Responses API on an Azure deployment; ApiKey optional —
+    //                           token credential otherwise)
+    //       "openai-responses" (Responses API on the OpenAI platform; ApiKey required,
+    //                           Endpoint optional. The ONLY path where OpenAI allows function
+    //                           tools together with reasoning — chat completions refuses the
+    //                           combination on newer models. Also carries hosted web_search.)
+    //       "openai-compat"    (any OpenAI-compatible chat-completions endpoint; ApiKey required)
+    //       "gemini-native"    (Gemini's generateContent API; ApiKey required — the path that
+    //                           supports Search grounding, unlike Gemini's openai-compat endpoint)
+    "foundry":    { "Kind": "azure-openai",     "Endpoint": "https://<acct>.openai.azure.com/" },
+    "openai":     { "Kind": "openai-responses" },
+    "gemini":     { "Kind": "gemini-native",    "Endpoint": "https://generativelanguage.googleapis.com/v1beta/" },
+    "neuralwatt": { "Kind": "openai-compat",    "Endpoint": "https://api.neuralwatt.com/v1" }
   },
   "Models": [
     // Documents: the card accepts PDF file input (generally needs a vision-capable deployment;

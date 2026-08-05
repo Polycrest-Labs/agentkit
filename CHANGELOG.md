@@ -11,6 +11,41 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ---
 
+## [0.3.0] — the `openai-responses` provider kind (2026-08-05)
+
+A fourth provider kind, `openai-responses`: the **OpenAI platform's** Responses API, the
+sibling of `azure-openai` for accounts that talk to OpenAI directly rather than through an
+Azure deployment.
+
+It exists because of a hard refusal, not a preference. OpenAI will not serve function tools
+and reasoning together on chat completions for its newer models:
+
+> Function tools with reasoning_effort are not supported for gpt-5.6-luna in
+> /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to
+> 'none'.
+
+An agent loop *is* function tools, so on the `openai-compat` path a reasoning model has to
+run with its reasoning switched off — `AgentRunner` returns HTTP 400 on every turn
+otherwise. This kind is how a host gets both. It also carries the hosted `web_search` tool
+and URL citations, exactly as the Azure Responses path does.
+
+One behavioural note worth recording, because it was the build's chief risk: `ForHistory`
+strips reasoning traces when re-sending an assistant turn, and the Responses API was known
+to reject a resubmitted `web_search_call` without its paired reasoning item. **Function
+calls do not behave that way** — a live three-hop, two-tool loop against `gpt-5.6-luna` with
+`reasoning_effort: medium` completed cleanly with the traces stripped. No change to
+`ForHistory` was needed.
+
+`IsConfigured` gains one exception for this kind: an endpoint is optional, because the SDK
+already knows where OpenAI lives. Requiring one would have made an otherwise-complete config
+*silently* unroutable — routing skips unconfigured providers, so the symptom is a model that
+vanishes from the catalog rather than an error anyone can read.
+
+Additive per the two-consumer rule: every existing `azure-openai` / `openai-compat` /
+`gemini-native` config is untouched. Tests 111 green.
+
+---
+
 ## [0.2.1] — final-hop completion text (2026-08-04)
 
 `AgentRunner`'s terminal `Completed.Text` now contains only the final model

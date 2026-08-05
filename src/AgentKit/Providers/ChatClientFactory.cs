@@ -37,10 +37,12 @@ public sealed class ChatClientFactory(
         var inner = provider.Kind.ToLowerInvariant() switch
         {
             "azure-openai" => AzureOpenAIProvider.Create(card, provider),
+            "openai-responses" => OpenAIResponsesProvider.Create(card, provider),
             "openai-compat" => OpenAICompatProvider.Create(card, provider),
             "gemini-native" => GeminiNativeProvider.Create(card, provider),
             var kind => throw new InvalidOperationException(
-                $"Provider '{card.Provider}' has unknown kind '{kind}' (expected azure-openai, openai-compat, or gemini-native)."),
+                $"Provider '{card.Provider}' has unknown kind '{kind}' " +
+                "(expected azure-openai, openai-responses, openai-compat, or gemini-native)."),
         };
         var logging = new LoggingChatClient(inner, card, sink, loggerFactory?.CreateLogger<LoggingChatClient>(), imageStore);
         return new CapabilityGateChatClient(logging, card);

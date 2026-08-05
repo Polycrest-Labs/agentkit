@@ -10,10 +10,12 @@ public sealed class LlmOptions
     public LlmLoggingOptions Logging { get; set; } = new();
 }
 
-/// <summary>How to reach one provider endpoint. <c>Kind</c> is <c>azure-openai</c> (the Responses API,
-/// key or Entra auth), <c>openai-compat</c> (any OpenAI-compatible endpoint + API key: NeuralWatt, …), or
-/// <c>gemini-native</c> (Gemini's <c>generateContent</c> API + key — the path that supports Search
-/// grounding, unlike Gemini's openai-compat endpoint).</summary>
+/// <summary>How to reach one provider endpoint. <c>Kind</c> is <c>azure-openai</c> (the Responses API
+/// on an Azure deployment, key or Entra auth), <c>openai-responses</c> (the same Responses API on the
+/// OpenAI platform + key — the only path where OpenAI allows function tools TOGETHER WITH reasoning),
+/// <c>openai-compat</c> (any OpenAI-compatible chat-completions endpoint + API key: NeuralWatt, OpenAI
+/// itself, …), or <c>gemini-native</c> (Gemini's <c>generateContent</c> API + key — the path that
+/// supports Search grounding, unlike Gemini's openai-compat endpoint).</summary>
 public sealed class LlmProviderOptions
 {
     public string Kind { get; set; } = "openai-compat";
@@ -23,11 +25,13 @@ public sealed class LlmProviderOptions
     /// <summary>Token-credential mode for <c>azure-openai</c> providers when no API key is set.</summary>
     public CredentialMode CredentialMode { get; set; } = CredentialMode.Auto;
 
-    /// <summary>Every provider needs an endpoint; only <c>azure-openai</c> can authenticate without an API
-    /// key (a token credential), so every other kind additionally needs one. Unconfigured providers'
-    /// models are skipped by routing.</summary>
+    /// <summary>What "reachable" means per kind. Endpoints: every kind needs one EXCEPT
+    /// <c>openai-responses</c>, whose SDK already knows where OpenAI lives — requiring one there would
+    /// make an otherwise-complete config silently unroutable (routing skips unconfigured providers, so
+    /// the symptom would be a missing model rather than an error). Keys: only <c>azure-openai</c> can
+    /// authenticate without one, via a token credential.</summary>
     public bool IsConfigured =>
-        !string.IsNullOrWhiteSpace(Endpoint)
+        (!string.IsNullOrWhiteSpace(Endpoint) || string.Equals(Kind, "openai-responses", StringComparison.OrdinalIgnoreCase))
         && (string.Equals(Kind, "azure-openai", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(ApiKey));
 }
 
