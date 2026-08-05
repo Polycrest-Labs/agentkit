@@ -173,7 +173,7 @@ await foreach (var ev in runner.RunAsync(request, new AgentRunnerOptions { /* ev
         case ToolCallFinished f:  /* name, output, isError */  break;
         case CustomEvent e:       /* YOUR domain event */      break;
         case UsageReport u:       /* whole-turn tokens */      break;
-        case Completed done:      /* full text */              break;
+        case Completed done:      /* final-hop full text */    break;
     }
 }
 ```

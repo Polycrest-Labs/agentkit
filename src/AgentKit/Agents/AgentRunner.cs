@@ -74,7 +74,12 @@ public sealed class AgentRunner(IModelRouter router, IChatClientFactory factory,
         var chatOptions = BuildChatOptions(request, options);
         var messages = BuildInitialMessages(request);
 
-        var fullText = new StringBuilder();
+        // Completed is the terminal answer, not a transcript of every model
+        // hop. Tool-call hops can carry preambles ("I'll check that") which
+        // still stream as TokenDelta and stay in conversation history, but a
+        // host that persists one closing message must receive only the final
+        // hop — the same contract as the pre-AgentKit Groundsworth loop.
+        var finalHopText = new StringBuilder();
         var seenCitations = new HashSet<(string?, string?)>();
         long inputTokens = 0, outputTokens = 0;
         var sawUsage = false;
@@ -83,6 +88,7 @@ public sealed class AgentRunner(IModelRouter router, IChatClientFactory factory,
 
         for (var hop = 0; hop < options.MaxHops; hop++)
         {
+            finalHopText.Clear();
             var updates = new List<ChatResponseUpdate>();
             await foreach (var update in client.GetStreamingResponseAsync(messages, chatOptions, ct))
             {
@@ -92,7 +98,7 @@ public sealed class AgentRunner(IModelRouter router, IChatClientFactory factory,
                 {
                     if (content is TextContent { Text.Length: > 0 } text)
                     {
-                        fullText.Append(text.Text);
+                        finalHopText.Append(text.Text);
                         await Emit(new TokenDelta(text.Text));
                     }
                     if (content is UsageContent usage)
@@ -153,7 +159,7 @@ public sealed class AgentRunner(IModelRouter router, IChatClientFactory factory,
         {
             await Emit(new UsageReport(inputTokens, outputTokens));
         }
-        await Emit(new Completed(fullText.ToString()));
+        await Emit(new Completed(finalHopText.ToString()));
     }
 
     /// <summary>Keep only the durable parts of an assistant turn when re-sending history: its text and

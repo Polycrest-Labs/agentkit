@@ -87,6 +87,34 @@ public sealed class AgentRunnerTests
     }
 
     [Fact]
+    public async Task Completed_CarriesOnlyFinalHopText_WhenToolHopAlsoStreamsText()
+    {
+        var tool = new AgentTool
+        {
+            Name = "get_context",
+            Description = "d",
+            ParametersSchema = """{"type":"object","properties":{}}""",
+            Handler = (_, _) => Task.FromResult(new ToolOutcome("context")),
+        };
+        var fake = new FakeChatClient()
+            .EnqueueStream(new ChatResponseUpdate(ChatRole.Assistant,
+            [
+                new TextContent("I'll check that."),
+                new FunctionCallContent("c1", "get_context", new Dictionary<string, object?>()),
+            ]))
+            .EnqueueStream("The client is First National Bank.");
+
+        var events = await Collect(Runner(fake), Request(tool));
+
+        Assert.Equal(
+            ["I'll check that.", "The client is First National Bank."],
+            events.OfType<TokenDelta>().Select(t => t.Delta));
+        Assert.Equal(
+            "The client is First National Bank.",
+            Assert.Single(events.OfType<Completed>()).Text);
+    }
+
+    [Fact]
     public async Task ToolError_BecomesRecoverableFeedback_NeverKillsTheTurn()
     {
         var tool = new AgentTool

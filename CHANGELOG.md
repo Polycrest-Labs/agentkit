@@ -11,6 +11,21 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ---
 
+## [0.2.1] — final-hop completion text (2026-08-04)
+
+`AgentRunner`'s terminal `Completed.Text` now contains only the final model
+hop's text. Earlier tool-call hops may stream preambles such as “I'll check
+that”; those deltas still stream through `TokenDelta` and remain in the model's
+conversation history, but they are no longer concatenated into the host's one
+closing message. This restores the result semantics of Groundsworth's retired
+tool loop and prevents run-together output such as “I'll check that.The client
+is …”. A mixed text-plus-tool first-hop regression test pins the contract.
+
+The .NET package advances to `Polycrest.AgentKit` 0.2.1. The UI package is
+unchanged and remains `@polycrestlabs/agentkit-ui` 0.2.0.
+
+---
+
 ## [0.2.0] — document input + the UI half + a CI lane (2026-08-04)
 
 Entries 10 (document input on the request surface), 11 (the ui/ workspace —

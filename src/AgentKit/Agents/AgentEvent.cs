@@ -24,5 +24,6 @@ public sealed record UsageReport(long? InputTokens, long? OutputTokens) : AgentE
 /// <summary>An opaque host domain event a tool handler emitted (see <see cref="ToolOutcome.DomainEvents"/>).</summary>
 public sealed record CustomEvent(object Payload) : AgentEvent;
 
-/// <summary>The turn finished; carries the full assistant text.</summary>
+/// <summary>The turn finished; carries the full assistant text from the final model hop. Text from
+/// earlier tool-call hops is still emitted as <see cref="TokenDelta"/> and retained in history.</summary>
 public sealed record Completed(string Text) : AgentEvent;
