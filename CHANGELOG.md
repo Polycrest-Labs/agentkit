@@ -11,7 +11,7 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ---
 
-## [Unreleased]
+## [0.4.1] — review hardening (2026-08-07)
 
 Post-0.4.0 hardening from the coordinated release's independent build review
 (`appraisalzone specs/agentkit-conversation-kit-review.html`) — no wire change; rides the next patch:

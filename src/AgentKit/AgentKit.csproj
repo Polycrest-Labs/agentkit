@@ -13,7 +13,7 @@
          NU5104: Azure.AI.OpenAI has no stable release yet (see README version-pairing gotcha). -->
     <NoWarn>$(NoWarn);NU1902;NU1903;OPENAI001;AOAI001;MEAI001;CS1591;NU5104</NoWarn>
     <PackageId>Polycrest.AgentKit</PackageId>
-    <Version>0.4.0</Version>
+    <Version>0.4.1</Version>
     <Authors>Hank Beasley</Authors>
     <Description>Config-driven LLM model catalog + router, providers (Azure OpenAI Responses, OpenAI Responses, OpenAI-compatible endpoints, Gemini native), per-hop completion logging with replayable vision images, failover + alerting, tolerant one-shot JSON completions, a provider-agnostic streaming agent loop with function tools, and the conversation wire: frames v2, a nonterminal turn session with outcome-aware SSE finality, prebuilt question/follow-up tools, and scope-generic attachment contracts — built on Microsoft.Extensions.AI.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
