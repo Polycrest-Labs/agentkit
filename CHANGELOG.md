@@ -120,8 +120,23 @@ a package asset; dark is opt-in via `data-agentkit-theme="dark"`, never `prefers
 documented in the workflow. Both halves stamp 0.4.0 and publish together only after the
 integrated browser-remediation gate.
 
-Cut checks, 2026-08-07: `AgentKit.Tests` 181 green · ui vitest 94 green · ng-packagr build clean
-(`styles.css` in the tarball) · `dotnet pack` clean with the FrameworkReference.
+**Integrated-usability remediation** (2026-08-07, the phase-7 browser gate over the seeded
+consumer — all found live, each with the smallest spec pin at this layer):
+
+- `.agentkit-transcript__inner` gains `flex-shrink: 0` — as a shrinkable flex item it collapsed
+  to the container height and `justify-content: flex-end` pushed a long thread's history ABOVE
+  the scroll origin: unreachable, uncounted by `scrollHeight`, invisible to jsdom.
+- The packaged `exports` map now exposes `./styles.css` — ng-packagr's generated map otherwise
+  blocks the one import every consumer needs.
+- `AgentTurnState` gains `maxPendingAttachments` (default 4): per-file uploads (the chips ↔
+  assets honesty rule) otherwise walk around any server per-batch cap one file at a time;
+  over-cap files refuse with a transcript notice naming them.
+- `<agent-transcript>` carries a PERSISTENT `role="status"` phase region (“working / replied /
+  did not finish”) — the ephemeral thinking/tool/uploading nodes appear and vanish, which
+  screen readers routinely miss; tokens never enter the live region.
+
+Cut checks, 2026-08-07: `AgentKit.Tests` 181 green · ui vitest 97 green · ng-packagr build clean
+(`styles.css` in the tarball, exported) · `dotnet pack` clean with the FrameworkReference.
 
 ---
 

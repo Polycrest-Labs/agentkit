@@ -139,6 +139,11 @@ import { AgentThinking } from './thinking';
       <button type="button" class="agentkit-transcript__jump" data-testid="btn-jump-latest"
               aria-label="Jump to latest" (click)="jumpToLatest()">↓ Latest</button>
     }
+
+    <!-- PERSISTENT phase announcement: ephemeral status nodes (thinking, tool pill) appear and
+         vanish, which screen readers routinely miss — this one region outlives the turn and
+         announces transitions only, never the token stream. -->
+    <span class="agentkit-sr-only" role="status" data-testid="sr-turn-status">{{ srStatus() }}</span>
   `,
 })
 export class AgentTranscript {
@@ -159,6 +164,16 @@ export class AgentTranscript {
 
   /** True while the user has scrolled up to read — auto-stick is suppressed. */
   protected readonly scrolledUp = signal(false);
+
+  /** One calm sentence per phase transition for the persistent status region. */
+  protected readonly srStatus = computed(() => {
+    switch (this.state().phase()) {
+      case 'streaming': return 'Assistant is working.';
+      case 'done': return 'Assistant replied.';
+      case 'error': return 'The turn did not finish.';
+      default: return '';
+    }
+  });
   private readonly cardsByType = computed(() => {
     const map = new Map<string, AgentCardDirective>();
     for (const card of [...this.cards(), ...this.cardTemplates()]) {

@@ -492,6 +492,36 @@ describe('AgentTurnState — attachments', () => {
     expect(state.pendingAttachments()).toHaveLength(0);
   });
 
+  it('the per-turn cap refuses files past it with a notice — per-file uploads must not walk around a batch limit', async () => {
+    const uploads: File[][] = [];
+    const transport = {
+      ...scripted(async () => { /* never sends */ }),
+      uploadAttachments: (files: File[]) => {
+        uploads.push(files);
+        return Promise.resolve([{ assetId: `a-${uploads.length}` }] as UploadedAgentAsset[]);
+      },
+    };
+    const state = new AgentTurnState(transport, { maxPendingAttachments: 2 });
+
+    state.addFiles([
+      new File([''], 'one.png', { type: 'image/png' }),
+      new File([''], 'two.png', { type: 'image/png' }),
+      new File([''], 'three.png', { type: 'image/png' }),
+    ]);
+    await flush();
+
+    expect(uploads).toHaveLength(2); // the third never uploaded
+    expect(state.pendingAttachments()).toHaveLength(2);
+    const notice = state.timeline().find((e) => e.kind === 'assistant' && e.notice);
+    expect(notice && 'text' in notice ? notice.text : '').toContain('at most 2');
+
+    // A later add against a FULL tray refuses everything, still with a notice.
+    state.addFiles([new File([''], 'four.png', { type: 'image/png' })]);
+    await flush();
+    expect(uploads).toHaveLength(2);
+    expect(state.pendingAttachments()).toHaveLength(2);
+  });
+
   it('source-kind assets never ride a turn', async () => {
     const { transport, finishUpload } = uploadingTransport([
       { assetId: 'a-1', kind: 'source' },

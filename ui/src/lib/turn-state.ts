@@ -113,6 +113,10 @@ export interface AgentTurnStateOptions {
   workingWindowMs?: number;
   /** Composer text substituted when only attachments were sent. */
   attachmentOnlyText?: string;
+  /** Most attachments one turn may carry (pending chips + uploads in flight). Files past the cap
+   * are refused with a transcript notice instead of uploading — per-file uploads would otherwise
+   * sidestep any server per-batch limit chip by chip. Default 4. */
+  maxPendingAttachments?: number;
   /** Transcript wording, overridable per host. */
   text?: Partial<AgentTurnStateText>;
 }
@@ -231,6 +235,7 @@ export class AgentTurnState<TDomain extends { type: string } = { type: string }>
   private readonly deadAirMs: number;
   private readonly workingWindowMs: number;
   private readonly attachmentOnlyText: string;
+  private readonly maxPendingAttachments: number;
   private readonly text: AgentTurnStateText;
 
   constructor(
@@ -240,6 +245,7 @@ export class AgentTurnState<TDomain extends { type: string } = { type: string }>
     this.deadAirMs = options.deadAirMs ?? 90_000;
     this.workingWindowMs = options.workingWindowMs ?? 30_000;
     this.attachmentOnlyText = options.attachmentOnlyText ?? '(attachments)';
+    this.maxPendingAttachments = options.maxPendingAttachments ?? 4;
     this.text = { ...DEFAULT_TEXT, ...options.text };
   }
 
@@ -571,7 +577,19 @@ export class AgentTurnState<TDomain extends { type: string } = { type: string }>
     const upload = this.transport.uploadAttachments?.bind(this.transport);
     if (!files.length || !upload) return;
     const mySurface = this.streamSeq;
-    const accepted = files.filter((f) => f.type.startsWith('image/') || f.type === 'application/pdf');
+    let accepted = files.filter((f) => f.type.startsWith('image/') || f.type === 'application/pdf');
+    // The per-turn cap counts chips already earned plus uploads still in flight — per-file
+    // uploads would otherwise walk past any server per-batch limit one file at a time.
+    const room = this.maxPendingAttachments - this.pendingAttachments().length - this.uploadsInFlight();
+    if (accepted.length > Math.max(0, room)) {
+      const refused = accepted.slice(Math.max(0, room));
+      accepted = accepted.slice(0, Math.max(0, room));
+      this.append({
+        kind: 'assistant',
+        text: `Attachment limit — a message carries at most ${this.maxPendingAttachments} files; ${refused.length === 1 ? `'${refused[0].name}' was` : `${refused.length} files were`} not added.`,
+        notice: true,
+      });
+    }
     for (const file of accepted) {
       this.uploadsInFlight.update((n) => n + 1);
       upload([file])

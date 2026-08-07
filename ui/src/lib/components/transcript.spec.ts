@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -137,5 +139,36 @@ describe('AgentTranscript', () => {
 
     ((fixture.nativeElement as HTMLElement).querySelector('[data-testid="btn-copy-message"]') as HTMLButtonElement).click();
     expect(written).toEqual(['copy me']);
+  });
+  it('the persistent status region announces phase transitions, never tokens', async () => {
+    const { fixture, state } = create();
+    const status = () => (fixture.nativeElement as HTMLElement)
+      .querySelector('[data-testid="sr-turn-status"]');
+    expect(status()?.getAttribute('role')).toBe('status');
+    expect(status()?.textContent?.trim()).toBe('');
+
+    state.phase.set('streaming');
+    fixture.detectChanges();
+    expect(status()?.textContent).toContain('working');
+    // Tokens never enter the live region.
+    state.streamingText.set('long token stream');
+    fixture.detectChanges();
+    expect(status()?.textContent).not.toContain('token');
+
+    state.phase.set('done');
+    fixture.detectChanges();
+    expect(status()?.textContent).toContain('replied');
+  });
+
+  it('the inner column must never shrink — a shrinkable inner pushes overflow above the scroll origin', () => {
+    // jsdom computes no layout, so the browser failure mode (long threads
+    // silently unreachable: inner shrinks to the container, justify-end shoves
+    // the overflow above scrollTop 0 where scrollHeight ignores it) cannot be
+    // asserted directly. Pin the stylesheet contract instead: the inner keeps
+    // flex-shrink: 0 next to its justify-content: flex-end.
+    const css = readFileSync(resolve(__dirname, '../../../styles.css'), 'utf8');
+    const inner = /\.agentkit-transcript__inner\s*{[^}]*}/.exec(css)?.[0] ?? '';
+    expect(inner).toContain('justify-content: flex-end');
+    expect(inner).toContain('flex-shrink: 0');
   });
 });

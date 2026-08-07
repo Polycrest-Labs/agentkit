@@ -172,6 +172,12 @@
   justify-content: flex-end;
   gap: 10px;
   min-height: 100%;
+  /* flex-shrink 0 is load-bearing: as a shrinkable flex item the inner
+     collapses to the transcript's height, and justify-content: flex-end then
+     pushes the overflow ABOVE the scroll origin — where scrollHeight does not
+     count it and no scrollbar can reach it. A long thread silently loses its
+     history (found in phase-7 integrated usability; invisible to jsdom). */
+  flex-shrink: 0;
   padding: 12px 2px;
 }
 
