@@ -280,6 +280,179 @@ describe('AgentTurnState — abort and fall-through', () => {
   });
 });
 
+describe('AgentTurnState — timeline v2', () => {
+  it('streams tokens live, records tool/citation/usage state, and folds them into the assistant entry', async () => {
+    let emitFrame: Emit = () => undefined;
+    let settle: () => void = () => undefined;
+    const state = new AgentTurnState(scripted((emit) => {
+      emitFrame = emit;
+      return new Promise((resolve) => { settle = resolve; });
+    }));
+
+    state.send('rank the comps');
+    await flush();
+    emitFrame(LOADED);
+    emitFrame({ type: 'token', delta: 'Ranking' });
+    expect(state.streamingText()).toBe('Ranking');
+    emitFrame({ type: 'tool', name: 'rank_comps', phase: 'start', label: 'Ranking comparables' });
+    expect(state.activeTool()).toEqual({ name: 'rank_comps', label: 'Ranking comparables' });
+    emitFrame({ type: 'tool', name: 'rank_comps', phase: 'end', label: 'Ranking comparables' });
+    expect(state.activeTool()).toBeNull();
+    emitFrame({ type: 'citation', title: 'TxGIO', url: 'https://example.test' });
+    emitFrame({ type: 'citation', title: 'TxGIO', url: 'https://example.test' }); // duplicate — deduped
+    emitFrame({ type: 'usage', inputTokens: 1200, outputTokens: 340 });
+    emitFrame(MESSAGE);
+    emitFrame(DONE);
+    settle();
+    await flush();
+
+    expect(state.phase()).toBe('done');
+    expect(state.streamingText()).toBe('');
+    const entry = state.timeline().at(-1);
+    expect(entry?.kind).toBe('assistant');
+    if (entry?.kind === 'assistant') {
+      expect(entry.text).toBe('All set.');
+      expect(entry.citations).toEqual([{ title: 'TxGIO', url: 'https://example.test' }]);
+      expect(entry.usage).toEqual({ inputTokens: 1200, outputTokens: 340 });
+      expect(entry.createdAtUtc).toBeTruthy(); // v2 stamps timestamps
+    }
+  });
+
+  it('question frames append durable entries; a later send locks them', async () => {
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(LOADED);
+      emit({ type: 'question', question: { id: 'q1', prompt: 'Which rights?' } });
+      emit(DONE);
+    }));
+
+    state.send('value the property');
+    await flush();
+
+    const question = state.timeline().find((e) => e.kind === 'question');
+    expect(question && question.kind === 'question' && question.answered).toBeFalsy();
+
+    state.send('Fee simple');
+    await flush();
+
+    const locked = state.timeline().find((e) => e.kind === 'question');
+    expect(locked && locked.kind === 'question' && locked.answered).toBe(true);
+  });
+
+  it('followup chips arrive with their turn and clear on the next send and on reset', async () => {
+    let turn = 0;
+    const state = new AgentTurnState(scripted(async (emit) => {
+      if (turn++ === 0) {
+        emit({ type: 'followups', prompts: ['Find comps', 'Run the workup'] });
+        emit(MESSAGE);
+      }
+      emit(DONE);
+    }));
+
+    state.send('hello');
+    await flush();
+    expect(state.followups()).toEqual(['Find comps', 'Run the workup']);
+
+    state.send('next turn');
+    expect(state.followups()).toEqual([]); // dropped at send, before any new frames
+    await flush();
+
+    state.reset();
+    expect(state.followups()).toEqual([]);
+  });
+
+  it('hydrate seeds the ordered rich timeline and live entries append after', async () => {
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(MESSAGE);
+      emit(DONE);
+    }));
+
+    state.hydrate([
+      { kind: 'user', text: 'earlier question', createdAtUtc: '2026-08-01T00:00:00Z', attachments: [{ assetId: 'a-1', originalName: 'site.jpg', contentType: 'image/jpeg' }] },
+      { kind: 'assistant', text: 'earlier answer', createdAtUtc: '2026-08-01T00:00:05Z', citations: [{ title: 'Doc', url: 'https://x.test' }], usage: { inputTokens: 10, outputTokens: 5 } },
+      { kind: 'question', question: { id: 'q1', prompt: 'County?' }, answered: true, answerText: 'Travis' },
+      { kind: 'domain', frameType: 'suggestion', data: { section: 'site', path: 'access' } },
+    ]);
+
+    expect(state.timeline().map((e) => e.kind)).toEqual(['user', 'assistant', 'question', 'domain']);
+    expect(state.messages().map((m) => m.text)).toEqual(['earlier question', 'earlier answer']);
+
+    state.send('and now?');
+    await flush();
+
+    expect(state.timeline().map((e) => e.kind)).toEqual(['user', 'assistant', 'question', 'domain', 'user', 'assistant']);
+    const hydratedQuestion = state.timeline()[2];
+    expect(hydratedQuestion.kind === 'question' && hydratedQuestion.answerText).toBe('Travis');
+  });
+
+  it('append() lets the host add durable domain entries', () => {
+    const state = new AgentTurnState(scripted(() => Promise.resolve()));
+    state.append({ kind: 'domain', frameType: 'suggestion', data: { path: 'p' } });
+    expect(state.timeline()).toHaveLength(1);
+    expect(state.timeline()[0].createdAtUtc).toBeTruthy();
+  });
+
+  it('working reflects frame recency, not just the streaming phase', async () => {
+    vi.useFakeTimers();
+    let emitFrame: Emit = () => undefined;
+    const state = new AgentTurnState(scripted((emit) => {
+      emitFrame = emit;
+      return new Promise(() => { /* held open */ });
+    }), { deadAirMs: 90_000, workingWindowMs: 30_000 });
+
+    state.send('hello');
+    expect(state.working()).toBe(true); // fresh send counts as activity
+
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(state.streaming()).toBe(true);
+    expect(state.working()).toBe(false); // no frame for > 2× heartbeat — not "working"
+
+    emitFrame({ type: 'heartbeat', seq: 1 });
+    expect(state.working()).toBe(true); // liveness restored by any frame
+  });
+});
+
+describe('AgentTurnState — stop', () => {
+  it('stop() is refused without the serverCancel capability', async () => {
+    const state = new AgentTurnState(scripted(() => new Promise(() => { /* held open */ })));
+    state.send('hello');
+    expect(state.canStop()).toBe(false);
+    expect(await state.stop()).toBe(false);
+    expect(state.phase()).toBe('streaming');
+  });
+
+  it('stop() cancels server-side, appends "Stopped." only after confirmation', async () => {
+    let cancels = 0;
+    const transport: AgentTransport<AgentFrame | { type: string }> = {
+      streamTurn: () => new Promise(() => { /* held open */ }),
+      capabilities: { serverCancel: true },
+      cancelTurn: async () => { cancels++; },
+    };
+    const state = new AgentTurnState(transport);
+    state.send('hello');
+    expect(state.canStop()).toBe(true);
+
+    expect(await state.stop()).toBe(true);
+    expect(cancels).toBe(1);
+    expect(state.phase()).toBe('idle');
+    const last = state.timeline().at(-1);
+    expect(last?.kind === 'assistant' && last.notice && last.text).toBe('Stopped.');
+  });
+
+  it('a failed server cancel claims nothing — the turn keeps running', async () => {
+    const transport: AgentTransport<AgentFrame | { type: string }> = {
+      streamTurn: () => new Promise(() => { /* held open */ }),
+      capabilities: { serverCancel: true },
+      cancelTurn: () => Promise.reject(new Error('cancel endpoint down')),
+    };
+    const state = new AgentTurnState(transport);
+    state.send('hello');
+
+    expect(await state.stop()).toBe(false);
+    expect(state.phase()).toBe('streaming');
+    expect(state.timeline().filter((e) => e.kind === 'assistant')).toHaveLength(0);
+  });
+});
+
 describe('AgentTurnState — attachments', () => {
   function uploadingTransport(assets: UploadedAgentAsset[], settle: { resolve?: () => void } = {}) {
     let resolveUpload: (a: UploadedAgentAsset[]) => void = () => undefined;

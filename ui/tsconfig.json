@@ -1,0 +1,8 @@
+{
+  "//": "Discovered by vite/esbuild for the vitest pipeline only — ng-packagr is invoked with -c tsconfig.lib.json explicitly. experimentalDecorators makes esbuild emit __decorate helpers; Node cannot parse raw stage-3 decorator syntax.",
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false
+  }
+}

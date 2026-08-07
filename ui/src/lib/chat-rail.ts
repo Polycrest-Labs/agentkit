@@ -8,22 +8,22 @@ import { AGENT_CONFIRM, AgentChatCapable, AgentChatSummary } from './tokens';
  * the transport is the {@link AgentChatCapable} capability (an input, host-provided) and the
  * delete confirm rides the {@link AGENT_CONFIRM} token (package-owned default). Same DOM and
  * data-testids (chat-list / chat-item / btn-new-chat / btn-delete-chat / btn-collapse-chats).
- * The parent owns which chat is active. Styling is utility-class based (Tailwind hosts pick it
- * up as-is; others restyle via the data-testids).
+ * The parent owns which chat is active. Styled by the kit stylesheet's `agentkit-rail__*`
+ * classes on `--agentkit-*` tokens (data-testids are test API, never styling API).
  */
 @Component({
   selector: 'agent-chat-rail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'contents' },
+  host: { class: 'agentkit-rail-host' },
   template: `
-    <aside data-testid="chat-list" class="flex w-56 shrink-0 flex-col rounded-lg border border-slate-200 bg-white shadow-sm print:hidden">
-      <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-        <h2 class="text-sm font-semibold text-slate-800">Chats</h2>
-        <div class="flex items-center gap-1">
+    <aside data-testid="chat-list" class="agentkit-rail" data-agentkit-part="chat-rail">
+      <div class="agentkit-rail__head">
+        <h2 class="agentkit-rail__title">Chats</h2>
+        <div class="agentkit-rail__head-actions">
           <button
             type="button"
             data-testid="btn-new-chat"
-            class="rounded-md bg-blue-600 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600/40 disabled:opacity-50"
+            class="agentkit-rail__new"
             [disabled]="creating()"
             (click)="newChat()"
           >
@@ -32,35 +32,34 @@ import { AGENT_CONFIRM, AgentChatCapable, AgentChatSummary } from './tokens';
           <button
             type="button"
             data-testid="btn-collapse-chats"
-            class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/40"
+            class="agentkit-rail__collapse"
             aria-label="Hide chat list"
             title="Hide chat list"
             (click)="collapse.emit()"
           >
-            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5" /><path d="M18 17l-5-5 5-5" /></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 17l-5-5 5-5" /><path d="M18 17l-5-5 5-5" /></svg>
           </button>
         </div>
       </div>
-      <ul class="flex-1 overflow-auto py-1">
+      <ul class="agentkit-rail__list">
         @for (c of chats(); track c.chatId) {
-          <li class="group relative">
+          <li class="agentkit-rail__row">
             <button
               type="button"
               data-testid="chat-item"
-              class="flex w-full items-center gap-2 px-3 py-2 pr-8 text-left text-sm hover:bg-slate-50 focus:outline-none focus:bg-blue-50"
-              [class.bg-blue-50]="activeChatId() === c.chatId"
-              [class.font-semibold]="activeChatId() === c.chatId"
+              class="agentkit-rail__item"
+              [class.agentkit-rail__item--active]="activeChatId() === c.chatId"
               (click)="selected.emit(c.chatId)"
             >
-              <span class="flex-1 truncate text-slate-800">{{ c.title }}</span>
+              <span class="agentkit-rail__item-title">{{ c.title }}</span>
               @if (c.inProgress) {
-                <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-blue-500" role="status" aria-label="Turn in progress"></span>
+                <span class="agentkit-rail__pulse" role="status" aria-label="Turn in progress"></span>
               }
             </button>
             <button
               type="button"
               data-testid="btn-delete-chat"
-              class="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded p-1 text-slate-600 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-400/40 group-hover:block group-focus-within:block"
+              class="agentkit-rail__delete"
               [attr.aria-label]="'Delete chat ' + c.title"
               (click)="remove(c)"
             >
@@ -68,7 +67,7 @@ import { AGENT_CONFIRM, AgentChatCapable, AgentChatSummary } from './tokens';
             </button>
           </li>
         } @empty {
-          <li class="px-3 py-4 text-center text-xs text-slate-600">No chats yet — start one.</li>
+          <li class="agentkit-rail__empty">No chats yet — start one.</li>
         }
       </ul>
     </aside>

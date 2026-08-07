@@ -39,6 +39,20 @@ export class AgentTurnRefusal extends Error {
  */
 export interface AgentTransport<TFrame extends { type: string } = { type: string }> {
   streamTurn(body: AgentTurnBody, onFrame: (frame: TFrame) => void, signal?: AbortSignal): Promise<void>;
+  /** Declared capabilities beyond the required core (see {@link AgentTransportCapabilities}). */
+  capabilities?: AgentTransportCapabilities;
+  /** Required when `capabilities.serverCancel`: explicitly cancel the running turn's SERVER work.
+   * Resolves once the server confirmed the cancellation. Distinct from aborting the stream read —
+   * a quiet client abort never claims the server stopped. */
+  cancelTurn?(): Promise<void>;
+}
+
+/** Optional transport capabilities the kit UI keys off. */
+export interface AgentTransportCapabilities {
+  /** True ONLY when the transport genuinely cancels server-side turn execution (the host chose
+   * Cancel disconnect semantics and proved abort reaches the runner). Gates the visible Stop
+   * control — without it, stopping is a quiet client abort and no Stop button renders. */
+  serverCancel?: boolean;
 }
 
 /** What the chat rail needs to render a chat row. */
