@@ -120,6 +120,38 @@ describe('AgentTurnState — the happy path', () => {
     expect(state.phase()).toBe('done');
     expect(state.messages().filter((m) => m.text.includes('nothing to add'))).toHaveLength(0);
   });
+
+  it('a HANDLED domain frame is rendered content, not "nothing to add"', async () => {
+    // 0.2.0's core suggestion frame set the rendered flag; its retirement into
+    // domain frames dropped that bookkeeping — a suggestion-only turn showed its
+    // card AND announced an empty turn.
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(LOADED);
+      emit({ type: 'suggestion', section: 'subject', path: 'landUse' } as never);
+      emit(DONE);
+    }));
+
+    const seen: unknown[] = [];
+    state.send('suggest the land use', { onDomainFrame: (frame) => seen.push(frame) });
+    await flush();
+
+    expect(seen).toHaveLength(1);
+    expect(state.phase()).toBe('done');
+    expect(state.messages().filter((m) => m.text.includes('nothing to add'))).toHaveLength(0);
+  });
+
+  it('an UNHANDLED domain-only turn still says nothing came out', async () => {
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(LOADED);
+      emit({ type: 'suggestion', section: 'subject', path: 'landUse' } as never);
+      emit(DONE);
+    }));
+
+    state.send('suggest the land use'); // no onDomainFrame — the frame went nowhere visible
+    await flush();
+
+    expect(state.messages().at(-1)?.text).toContain('nothing to add');
+  });
 });
 
 describe('AgentTurnState — refusals and errors', () => {

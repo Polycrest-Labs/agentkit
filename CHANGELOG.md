@@ -11,6 +11,28 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ---
 
+## [Unreleased]
+
+Post-0.4.0 hardening from the coordinated release's independent build review
+(`appraisalzone specs/agentkit-conversation-kit-review.html`) — no wire change; rides the next patch:
+
+- **`AgentTurnSse`**: the initial header flush now catches the same dead-socket set as the
+  per-frame writer (`IOException`/`ObjectDisposedException`, not just OCE) — an escape there
+  skipped the REQUIRED finalizer and stranded the session pump on its bounded channel.
+- **`AgentTurnSession`**: a provider-side `TaskCanceledException` with an un-canceled turn token
+  is now a fault (`turn_failed`, exception logged), not a silent `turn_canceled`; a faulting
+  substituted `TimeProvider` can no longer skip outcome completion (consumer hang).
+- **`AgentAttachmentEndpoint`**: a malformed/truncated multipart body is a typed
+  `not_multipart` refusal, never an unhandled 500. (Reminder in-source: kit budgets are content
+  policy — hosts still cap the transport with `RequestSizeLimit`/`FormOptions`.)
+- **`AgentChatPanel`**: aborts its panel-owned `AgentTurnState` on destroy, per the state
+  machine's own teardown rule — an abandoned stream held the host's single-flight gate.
+- **`AgentTurnState`**: a domain frame delivered to a host `onDomainFrame` handler counts as
+  rendered content — a suggestion-only turn no longer also announces "nothing to add".
+- **`AgentComposer`**: removes its wrap-measurement span from `document.body` on destroy.
+- Tests: 184 .NET / 100 UI (dead-socket flush, provider-timeout classification, malformed
+  multipart, panel teardown, domain-rendered × handled/unhandled).
+
 ## [0.4.0] — the conversation kit (2026-08-07)
 
 **The one sanctioned pre-1.0 break.** Every release until now honored the "0.x stays additive"

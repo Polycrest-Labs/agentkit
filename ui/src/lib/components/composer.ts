@@ -217,7 +217,13 @@ export class AgentComposer<TAttachment extends AgentComposerAttachment = AgentCo
   );
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.removeClickSuppressor?.());
+    inject(DestroyRef).onDestroy(() => {
+      this.removeClickSuppressor?.();
+      // The wrap-measurement span lives on document.body — without this, every
+      // destroyed composer leaves one hidden node behind for the page's lifetime.
+      this.measureNode?.remove();
+      this.measureNode = null;
+    });
     effect(() => {
       this.draft.set(this.value());
       queueMicrotask(() => {

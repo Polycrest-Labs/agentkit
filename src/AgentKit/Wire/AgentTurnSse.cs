@@ -147,11 +147,15 @@ public static class AgentTurnSse
         using var abortReaction = requestAborted.Register(OnClientGone);
 
         // Flush the headers immediately (tokens must start arriving before the first frame).
+        // The catch set MUST match the per-frame writer's: a dead socket surfaces as
+        // IOException/ObjectDisposedException on some servers (HTTP.sys/IIS), and an escape
+        // here would skip the drain loop AND the required finalizer — stranding the session
+        // pump on its bounded channel and losing the turn's persistence.
         try
         {
             await response.Body.FlushAsync(requestAborted);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or ObjectDisposedException)
         {
             OnClientGone();
         }

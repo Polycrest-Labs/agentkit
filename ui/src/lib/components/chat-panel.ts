@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   contentChildren,
   inject,
@@ -99,6 +100,13 @@ export class AgentChatPanel {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private ownState: AgentTurnState<any> | null = null;
+
+  constructor() {
+    // The state machine's own teardown rule ("surfaces abort on teardown — an
+    // abandoned stream holds a server-side single-flight gate") applies to the
+    // state THIS panel constructs. A host-provided [state] is the host's to tear down.
+    inject(DestroyRef).onDestroy(() => this.ownState?.abort());
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected readonly turnState = computed<AgentTurnState<any>>(() => {

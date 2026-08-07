@@ -53,6 +53,33 @@ public sealed class AgentTurnSseTests
         }
     }
 
+    private sealed class FlushThrowsStream : MemoryStream
+    {
+        public override void Flush() => throw new IOException("socket reset");
+        public override Task FlushAsync(CancellationToken cancellationToken) => throw new IOException("socket reset");
+    }
+
+    [Fact]
+    public async Task DeadSocketAtHeaderFlush_FinalizerStillRuns_RunAsyncNeverThrows()
+    {
+        // HTTP.sys/IIS surface a dead socket as IOException, not OCE. An escape at the
+        // initial header flush used to skip the drain loop AND the required finalizer —
+        // stranding the session pump on its bounded channel and losing persistence.
+        var context = new DefaultHttpContext();
+        context.Response.Body = new FlushThrowsStream();
+        var session = AgentTurnSession.Start(
+            Events(new TokenDelta("Hel"), new Completed("Hello")), Descriptor, NoHeartbeat);
+        var finalized = false;
+
+        await AgentTurnSse.RunAsync(context.Response, session,
+            (_, _) => { finalized = true; return Task.FromResult<AgentTurnFinalization?>(null); },
+            options: null, requestAborted: context.RequestAborted);
+
+        Assert.True(finalized, "the REQUIRED finalizer must run even when the socket dies at the header flush");
+        var outcome = await session.Outcome.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(outcome.Succeeded); // the turn itself drained to completion (Drain semantics)
+    }
+
     [Fact]
     public async Task Success_FinalizerRunsBeforeTerminalBytes_ThenMessageAndDone()
     {

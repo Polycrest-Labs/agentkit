@@ -25,6 +25,33 @@ function create(providers: unknown[] = [], inputs: Record<string, unknown> = {})
   return fixture;
 }
 
+describe('AgentChatPanel — teardown of the panel-owned state', () => {
+  it('aborts its OWN state on destroy — an abandoned stream holds the server gate', async () => {
+    // Mid-stream forever: one frame, then the promise parks until the abort signal fires.
+    const transport = {
+      capabilities: {},
+      streamTurn: (_body: unknown, onFrame: (frame: AgentFrame) => void, signal?: AbortSignal) => {
+        onFrame(LOADED);
+        return new Promise<void>((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        });
+      },
+    };
+    const fixture = create([{ provide: AGENT_TRANSPORT, useValue: transport }]);
+    const state = (fixture.componentInstance as unknown as { turnState(): AgentTurnState }).turnState();
+
+    state.send('rank the comps');
+    await flush();
+    expect(state.streaming()).toBe(true);
+
+    fixture.destroy();
+
+    // The state machine's own teardown rule, honored by the kit's assembled surface.
+    expect(state.streaming()).toBe(false);
+  });
+});
+
 describe('AgentChatPanel — the scripted round-trip', () => {
   it('a send flows through the transport script into the rendered transcript (frames → timeline → DOM)', async () => {
     const transport = scriptedTransport([[

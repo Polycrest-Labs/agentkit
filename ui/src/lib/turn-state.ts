@@ -483,7 +483,13 @@ export class AgentTurnState<TDomain extends { type: string } = { type: string }>
           break;
         }
         default:
-          opts.onDomainFrame?.(frame as TDomain);
+          if (opts.onDomainFrame) {
+            // A HANDLED domain frame is rendered content (0.2.0's suggestion case set this
+            // flag; its retirement into domain frames silently dropped the bookkeeping) —
+            // a suggestion-only turn must not also announce "nothing to add".
+            opts.onDomainFrame(frame as TDomain);
+            rendered = true;
+          }
           break;
       }
     };

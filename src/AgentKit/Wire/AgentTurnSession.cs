@@ -154,12 +154,15 @@ public sealed class AgentTurnSession
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             canceled = true;
         }
         catch (Exception ex)
         {
+            // Includes provider-side TaskCanceledException (e.g. an HttpClient timeout) when
+            // OUR token was never canceled: that is a fault, not a cancel — classifying it as
+            // canceled emitted a wrong turn_canceled and left no server-side trace at all.
             failure = ex;
         }
         finally
@@ -172,6 +175,12 @@ public sealed class AgentTurnSession
             catch (OperationCanceledException)
             {
                 // the heartbeat pump's normal exit
+            }
+            catch (Exception ex)
+            {
+                // A faulting substituted TimeProvider must not skip the completion below —
+                // an incomplete channel would hang the consumer forever.
+                _logger?.LogWarning(ex, "Heartbeat pump faulted; completing the turn outcome anyway");
             }
             _channel.Writer.TryComplete();
             _outcome.TrySetResult(new AgentTurnOutcome

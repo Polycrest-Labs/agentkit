@@ -74,6 +74,14 @@ Behavioral contracts baked in:
   the server confirmed the cancellation. Quiet `abort()` remains teardown.
 - **Scroll sticks to the bottom — never while the user scrolled up to read**; a
   jump-to-latest button brings them back.
+- **`hydrate()` preserves pending composer chips ON PURPOSE** (an unsent upload survives
+  a refresh) — so when hydrate means *a different scope* (another thread/job whose asset
+  ids the chips cannot ride), the host must call `clearPending()` first, and should also
+  call it on surface teardown: chip preview URLs live in the state machine, not the host.
+- **Markdown renders model-controlled text.** Angular's sanitizer strips scripts and
+  event handlers, but `<img src="https://…">` survives — a prompt-injected reply can
+  beacon data out through an image URL with zero clicks. Serve a restrictive
+  `img-src` CSP (or post-process the markdown) if that matters to your deployment.
 
 ## The transport contract
 

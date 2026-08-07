@@ -195,6 +195,25 @@ public sealed class WireEncoderTests
     }
 
     [Fact]
+    public async Task ProviderTimeout_ShapedAsCancellation_IsAFault_NotACancel()
+    {
+        // An HttpClient timeout inside the model stream surfaces as TaskCanceledException
+        // (an OperationCanceledException) while OUR turn token was never canceled. That is
+        // a FAULT: classifying it as canceled emitted a wrong turn_canceled terminal and —
+        // because only outcome.Exception gets logged — left no server-side trace at all.
+        var session = AgentTurnSession.Start(
+            FaultingEvents(new TokenDelta("par"), new TaskCanceledException("provider timed out")),
+            Descriptor, NoHeartbeat());
+
+        await Collect(session);
+        var outcome = await session.Outcome.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(outcome.WasCanceled);
+        Assert.IsType<TaskCanceledException>(outcome.Exception);
+        Assert.False(outcome.Succeeded);
+    }
+
+    [Fact]
     public async Task Heartbeats_FireOnCadence_WhileTheProducerHangs()
     {
         var time = new ManualTimeProvider();

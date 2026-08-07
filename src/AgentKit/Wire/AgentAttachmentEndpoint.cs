@@ -67,7 +67,20 @@ public static class AgentAttachmentEndpoint
         {
             return AgentAttachmentResult.Fail("not_multipart", "The request must be multipart/form-data.");
         }
-        var form = await request.ReadFormAsync(ct);
+        // A malformed body (bad/missing boundary, truncated section, a section past the server's
+        // multipart limits) throws InvalidDataException — that is a client error and must stay a
+        // typed refusal, never an unhandled 500. NOTE: budgets below bind only after ASP.NET has
+        // buffered the form — hosts must still cap the transport (RequestSizeLimit / FormOptions);
+        // the kit's limits are content policy, not a transport guard.
+        IFormCollection form;
+        try
+        {
+            form = await request.ReadFormAsync(ct);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException)
+        {
+            return AgentAttachmentResult.Fail("not_multipart", "The multipart body is malformed or truncated.");
+        }
         var files = form.Files;
         if (files.Count == 0)
         {
