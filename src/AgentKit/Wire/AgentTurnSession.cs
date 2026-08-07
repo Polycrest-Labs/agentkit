@@ -70,6 +70,7 @@ public sealed class AgentTurnSession
         IAsyncEnumerable<AgentEvent> events, AgentTurnDescriptor descriptor,
         AgentWireOptions options, ILogger? logger, CancellationToken turnCt)
     {
+        Descriptor = descriptor;
         _options = options;
         _logger = logger;
         _channel = Channel.CreateBounded<AgentFrame>(new BoundedChannelOptions(64)
@@ -80,6 +81,9 @@ public sealed class AgentTurnSession
         });
         _ = PumpAsync(events, descriptor, turnCt);
     }
+
+    /// <summary>The host-resolved turn identity (the SSE writer stamps its terminal frames from it).</summary>
+    public AgentTurnDescriptor Descriptor { get; }
 
     /// <summary>The ordered nonterminal frames. Enumerate exactly once; the sequence ends when the
     /// turn completes, faults, or is canceled — then await <see cref="Outcome"/>.</summary>

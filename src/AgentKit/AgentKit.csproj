@@ -13,18 +13,25 @@
          NU5104: Azure.AI.OpenAI has no stable release yet (see README version-pairing gotcha). -->
     <NoWarn>$(NoWarn);NU1902;NU1903;OPENAI001;AOAI001;MEAI001;CS1591;NU5104</NoWarn>
     <PackageId>Polycrest.AgentKit</PackageId>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Authors>Hank Beasley</Authors>
-    <Description>Config-driven LLM model catalog + router, providers (Azure OpenAI Responses, OpenAI Responses, OpenAI-compatible endpoints, Gemini native), per-hop completion logging with replayable vision images, failover + alerting, tolerant one-shot JSON completions, and a provider-agnostic streaming agent loop with function tools — built on Microsoft.Extensions.AI.</Description>
+    <Description>Config-driven LLM model catalog + router, providers (Azure OpenAI Responses, OpenAI Responses, OpenAI-compatible endpoints, Gemini native), per-hop completion logging with replayable vision images, failover + alerting, tolerant one-shot JSON completions, a provider-agnostic streaming agent loop with function tools, and the conversation wire: frames v2, a nonterminal turn session with outcome-aware SSE finality, prebuilt question/follow-up tools, and scope-generic attachment contracts — built on Microsoft.Extensions.AI.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>ai;llm;agents;openai;azure-openai;gemini;microsoft-extensions-ai;model-router;failover;function-calling</PackageTags>
-    <PackageReleaseNotes>0.3.0: new openai-responses provider kind — the OpenAI platform Responses API, the only path where OpenAI permits function tools TOGETHER WITH reasoning (chat completions refuses the combination on newer models such as gpt-5.6-luna). Additive: existing azure-openai/openai-compat/gemini-native configs are unchanged.</PackageReleaseNotes>
+    <PackageTags>ai;llm;agents;openai;azure-openai;gemini;microsoft-extensions-ai;model-router;failover;function-calling;sse;streaming</PackageTags>
+    <PackageReleaseNotes>0.4.0: the conversation kit — the one sanctioned pre-1.0 break. Frames v2 (kit-owned wire vocabulary, conformance-tested from C# and TS against shared fixtures), AgentTurnSession/AgentTurnOutcome (nonterminal frames + explicit outcome; terminal success only after the host finalizer commits), the narrow ASP.NET AgentTurnSse writer (Drain|Cancel disconnect semantics, distinct write/turn/finalization tokens) and multipart attachment endpoint helper, prebuilt ask_question/ask_questions/suggest_followups tools with AgentQuestionHistory, AgentTool.DisplayLabel, IAgentAttachmentStore&lt;TScope&gt;, and multimodal history parts. Ships together with @polycrestlabs/agentkit-ui 0.4.0.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Polycrest-Labs/agentkit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Polycrest-Labs/agentkit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The narrow ASP.NET touchpoints (Wire/AgentTurnSse.cs + Wire/AgentAttachmentEndpoint.cs)
+         are the ONLY files allowed to use ASP.NET types — that confinement is the split-later
+         escape hatch if a non-web consumer ever makes this reference costly. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />

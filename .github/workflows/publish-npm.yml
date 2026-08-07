@@ -1,0 +1,54 @@
+name: Publish npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build, test, and publish
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # npm Trusted Publishing (OIDC)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # OIDC-based publishing needs npm >= 11.5 (the npm bundled with Node 22 is older).
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g npm@latest
+
+      - name: Install
+        run: npm ci
+        working-directory: ui
+
+      - name: Test
+        run: npm test
+        working-directory: ui
+
+      - name: Build
+        run: npm run build
+        working-directory: ui
+
+      # Preferred path: npm Trusted Publishing — configure @polycrestlabs/agentkit-ui on
+      # npmjs.com (package Settings → Trusted publishing) to trust this repo + workflow; no
+      # token is stored anywhere. Fallback while OIDC is unconfigured: create a granular
+      # automation token as the NPM_TOKEN repo secret and add
+      #   env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
+      # to this step.
+      - name: Publish
+        run: npm publish dist/ --access public
+        working-directory: ui

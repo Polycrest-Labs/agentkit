@@ -1,7 +1,7 @@
 {
   "name": "@polycrestlabs/agentkit-ui",
-  "version": "0.2.0",
-  "description": "The AgentKit conversation UI kit for Angular: SSE frame parsing, the agent-turn state machine (heartbeat liveness, dead-air timeout, refusals, attachment gating), the chat rail, and the transport/confirm injection seams. Types the loaded · suggestion · changeset · heartbeat · error frame vocabulary as its core event union.",
+  "version": "0.4.0",
+  "description": "The AgentKit conversation UI kit for Angular: the v2 frame vocabulary (loaded/token/tool/question/questionForm/followups/citation/usage/heartbeat/message/done/error), the agent-turn state machine with an ordered rich timeline and durable hydration, and the full component set — transcript, composer, question cards, presentation-only proposal cards, followup chips — restyled onto --agentkit-* tokens, plus the transport/confirm injection seams and a fixture-replaying stub transport.",
   "license": "MIT",
   "repository": {
     "type": "git",

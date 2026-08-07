@@ -35,6 +35,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- DefaultHttpContext drives the SSE writer and multipart helper without a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The canonical wire-protocol fixtures — the same files the TS suite parses. -->
     <Content Include="..\..\protocol\fixtures\**" CopyToOutputDirectory="PreserveNewest" LinkBase="protocol-fixtures\" />
   </ItemGroup>

@@ -11,7 +11,7 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ---
 
-## [0.4.0] — the conversation kit (in progress)
+## [0.4.0] — the conversation kit (2026-08-07)
 
 **The one sanctioned pre-1.0 break.** Every release until now honored the "0.x stays additive"
 rule; 0.4.0 amends it exactly once, deliberately: the wire protocol both halves speak is redesigned
@@ -43,7 +43,7 @@ demote to Groundsworth domain frames). The SSE `event:` name is the sole discrim
 are object-only, TS reassembles `{...payload, type: eventName}` (a hostile payload `type` can
 never spoof a terminal), domain names match `^[a-z][a-z0-9-]*$` and can't shadow core names.
 
-Shipped so far (phase 1 of the conversation-kit build):
+**The .NET half:**
 
 - **`AgentTurnSession` + `AgentWireOptions`** (dependency-free): nonterminal frame sequence
   (`loaded` first, heartbeat merged through one bounded channel, fake-time testable via
@@ -62,12 +62,66 @@ Shipped so far (phase 1 of the conversation-kit build):
   DTOs (`StoredAgentAsset` — string asset ids), `AgentAttachmentLimits` (4 files / 25 MB /
   exact-MIME allowlist defaults), and `AgentHistoryMessage.Parts` (ordered text/image/document
   parts) so hosts can replay eligible prior attachments as real multimodal history.
-- **TS mirror hardening**: `parseFrame` requires a valid event name and a non-null non-array
-  object payload; `AgentTurnBody.attachmentAssetIds`/`UploadedAgentAsset.assetId` retype to
-  string; the turn state adopts the v2 terminals (`message` authoritative, streamed tokens as
-  fallback) ahead of its full v2 rework.
+- **`AgentTurnSse`** — the narrow ASP.NET SSE writer (the package's one FrameworkReference,
+  confined to the two `Wire/` touchpoint files as the split-later escape hatch): headers +
+  flushed single-line frames, and OUTCOME-AWARE finality — the REQUIRED host finalizer runs
+  before any terminal frame for every outcome (success, fault, cancel), so `done` is impossible
+  before the host's durable commit and a finalization failure emits a stable safe `error`
+  (`finalize_failed`), never success. Disconnects are explicit:
+  `AgentSseOptions.ClientDisconnect = Drain | Cancel` — Drain stops writes and keeps consuming so
+  persistence lands (the aws discipline); Cancel additionally cancels the host-supplied
+  `TurnCancellation` the moment the request aborts. The request-write, turn-execution and
+  finalization tokens are never the same by accident, and a core-frame serialization failure
+  terminates with a safe error rather than a false `done`. Infrastructure exception text stays in
+  server logs; hosts map safe domain detail via `SafeError`.
+- **`AgentAttachmentEndpoint`** — the multipart helper: one batch, count/per-file/aggregate
+  budgets, exact content-type allowlist, REQUIRED host magic-byte agreement
+  (`AgentMagicBytes.Matches` covers the default five types), basename sanitization, and
+  all-validation-before-any-store-write; typed `AgentAttachmentError` codes for ProblemDetails.
 - `DtoJsonSchema.For` is now safe under concurrent first use (schema generation serialized —
   two racing static initializers could previously hit "options instance is read-only").
+
+**The UI half** — `AgentTurnState` v2 + the component set, each piece ported from its most
+evolved sibling copy and restyled from Tailwind onto `--agentkit-*` tokens (`styles.css` ships as
+a package asset; dark is opt-in via `data-agentkit-theme="dark"`, never `prefers-color-scheme`):
+
+- **`AgentTurnState` v2**: the ordered rich `timeline` (user/assistant messages, durable
+  question/form cards, host domain entries) with `hydrate()` from host persistence;
+  `streamingText`/`activeTool`/`followups`/`citations`/`usage`; frame-recency `working`;
+  capability-gated `stop()` that appends "Stopped." only after the server confirmed; timestamps
+  stamped (the 0.2.0 `createdAtUtc: ''` gap). `streamSeq`, no-terminal clean-close, dead-air,
+  refusal mapping and failed-send chip restore retained and regression-tested.
+- **`<agent-composer>`** — the aws `ai-composer` ported wholesale: IME-guarded Enter/Shift+Enter,
+  auto-grow with wrap pre-measurement, compact↔expanded, send-on-pointerdown + ghost-click
+  suppression, 48px invisible touch targets, ＋ menu / drag-drop / clipboard paste with the
+  `text/plain` guard, attachment chips, `setDraft()`/`focusInput()`.
+- **`<agent-question-card>`** — radio/checkbox/Other/free-text, first-answer-unlocks Submit,
+  the "(skipped)" line protocol, answered-lock with durable answer text.
+- **`<agent-proposal-card>` + `<agent-proposal-list>`** — vacadock's presentation behavior made
+  generic: pending/accepted/denied/stale (stale is never decidable), busy disable, row limit,
+  single + accept-all/deny-all INTENTS only — proposals are host-domain records; no core
+  proposal frame exists.
+- **`<agent-transcript>`** — ordered timeline rendering: markdown bubbles, live streaming bubble
+  (thinking dots → text + caret), tool pill with server labels, deduped citations footer,
+  optional usage line, copy-message, `*agentCard` host-domain template projection, and
+  stick-to-bottom scroll SUPPRESSED while the user reads (jump-to-latest) — the improvement
+  neither sibling has.
+- **`<agent-chat-panel>`** — the assembled `min-h-0` flex surface over `AGENT_TRANSPORT` (the
+  token is finally injected — it was dead code in 0.2.0); followup chips prefill-and-focus,
+  never auto-send; Stop renders only on a `serverCancel` transport.
+- **`scriptedTransport`** — the fixture-replaying stub; demos and component specs run key-less
+  against the real frame contract.
+- **TS mirror hardening**: `parseFrame` requires a valid event name and a non-null non-array
+  object payload (`{...payload, type: eventName}` — type stamped last);
+  `AgentTurnBody.attachmentAssetIds`/`UploadedAgentAsset.assetId` retype to string.
+
+**CI/publish**: `.github/workflows/publish-npm.yml` publishes `ui/dist` on GitHub release
+(mirrors `publish-nuget.yml`) — npm Trusted Publishing (OIDC) preferred, `NPM_TOKEN` fallback
+documented in the workflow. Both halves stamp 0.4.0 and publish together only after the
+integrated browser-remediation gate.
+
+Cut checks, 2026-08-07: `AgentKit.Tests` 181 green · ui vitest 94 green · ng-packagr build clean
+(`styles.css` in the tarball) · `dotnet pack` clean with the FrameworkReference.
 
 ---
 
