@@ -1,0 +1,6 @@
+{
+  "event": "token",
+  "rawData": "[1,2]",
+  "valid": false,
+  "kind": "core"
+}

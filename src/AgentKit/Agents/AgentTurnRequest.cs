@@ -2,8 +2,25 @@ using AgentKit.Catalog;
 
 namespace AgentKit.Agents;
 
-/// <summary>One rendered prior turn ("user" or "assistant" + text).</summary>
-public sealed record AgentHistoryMessage(string Role, string Text);
+/// <summary>One rendered prior turn ("user" or "assistant" + text). Simple hosts use the text-only
+/// constructor; hosts replaying prior attachments as real multimodal history populate
+/// <see cref="Parts"/> — when non-empty, the ordered parts ARE the message content and
+/// <see cref="Text"/> is ignored (include an <see cref="AgentHistoryTextPart"/> for the text).
+/// Replay policy (which prior assets, under what budget) is the HOST's job; the library passes
+/// parts through exactly like the current message's images/documents.</summary>
+public sealed record AgentHistoryMessage(string Role, string Text)
+{
+    public IReadOnlyList<AgentHistoryPart> Parts { get; init; } = [];
+}
+
+/// <summary>One ordered piece of a multimodal history message.</summary>
+public abstract record AgentHistoryPart;
+
+public sealed record AgentHistoryTextPart(string Text) : AgentHistoryPart;
+
+public sealed record AgentHistoryImagePart(LlmImage Image) : AgentHistoryPart;
+
+public sealed record AgentHistoryDocumentPart(LlmDocument Document) : AgentHistoryPart;
 
 /// <summary>Everything the runner needs for one turn. The host renders its own history/instructions;
 /// the library stays domain-free.</summary>

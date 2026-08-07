@@ -1,0 +1,7 @@
+{
+  "event": "usage",
+  "payload": { "inputTokens": 1200, "outputTokens": 340 },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

@@ -1,0 +1,7 @@
+{
+  "event": "suggestion",
+  "payload": { "section": "site", "path": "access", "value": "paved", "note": "per photos" },
+  "valid": true,
+  "kind": "domain",
+  "roundTrip": true
+}

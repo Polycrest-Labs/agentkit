@@ -1,0 +1,7 @@
+{
+  "event": "followups",
+  "payload": { "prompts": ["Find comps near the subject", "Run the site workup"] },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

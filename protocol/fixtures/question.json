@@ -1,0 +1,19 @@
+{
+  "event": "question",
+  "payload": {
+    "question": {
+      "id": "q1",
+      "prompt": "Which property rights are appraised?",
+      "options": [
+        { "id": "o1", "label": "Fee simple" },
+        { "id": "o2", "label": "Leased fee", "detail": "Subject to the current lease" }
+      ],
+      "multiSelect": false,
+      "allowOther": true,
+      "otherPlaceholder": "Describe the interest"
+    }
+  },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

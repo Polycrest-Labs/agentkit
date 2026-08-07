@@ -1,0 +1,7 @@
+{
+  "event": "tool",
+  "payload": { "name": "rank_comps", "phase": "end" },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

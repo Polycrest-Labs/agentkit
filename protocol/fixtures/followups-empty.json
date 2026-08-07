@@ -1,0 +1,7 @@
+{
+  "event": "followups",
+  "payload": { "prompts": [] },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

@@ -41,15 +41,25 @@ public static class DtoJsonSchema
         Converters = { new JsonStringEnumConverter() },
     };
 
+    // CreateJsonSchema mutates the shared options' TypeInfoResolver on first use; two concurrent
+    // first calls race one thread into setting it after the other froze the instance
+    // (InvalidOperationException: read-only). Generation happens at static-init time and is cheap —
+    // serialize it.
+    private static readonly Lock SchemaGate = new();
+
     public static string For<T>(DtoSchemaOptions? options = null) => For(typeof(T), options);
 
     public static string For(Type type, DtoSchemaOptions? options = null)
     {
         options ??= new DtoSchemaOptions();
-        var schema = AIJsonUtilities.CreateJsonSchema(
-            type,
-            description: options.Description,
-            serializerOptions: SchemaOptions);
+        JsonElement schema;
+        lock (SchemaGate)
+        {
+            schema = AIJsonUtilities.CreateJsonSchema(
+                type,
+                description: options.Description,
+                serializerOptions: SchemaOptions);
+        }
         var node = JsonSerializer.SerializeToNode(schema)?.AsObject()
             ?? throw new InvalidOperationException($"Schema generation for {type.Name} produced no object.");
         Shape(node, options, isRoot: true);

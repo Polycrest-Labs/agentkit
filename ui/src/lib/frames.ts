@@ -1,14 +1,20 @@
 /**
- * The kit's core event union IS the frame vocabulary the Groundsworth job-turn channel already
- * emits — `loaded · suggestion · changeset · heartbeat · error` — typed here rather than invented
- * as a second protocol. A stream that merely stops is indistinguishable from success on the wire,
- * so the server's convention is: a terminal frame (`changeset` or `error`) always closes a healthy
- * turn, and `heartbeat` proves liveness in between; the turn state machine treats silence as
- * failure (dead-air timeout) and never renders a heartbeat.
+ * The v2 frame vocabulary — the kit-owned wire protocol, mirrored 1:1 from the C# records in
+ * `src/AgentKit/Wire/AgentFrames.cs` and conformance-tested against the shared fixtures in
+ * `protocol/fixtures/` (see `wire-fixtures.spec.ts`). The SSE `event:` name is the SOLE
+ * discriminant: `parseFrame` reassembles `{...payload, type: eventName}`, so a hostile payload
+ * `type` can never override it, and payloads must be non-null, non-array JSON objects.
+ *
+ * Terminal convention: a healthy turn always closes with `message` (authoritative final text) +
+ * `done`, or a safe `error` — and the server emits those only AFTER host finalization commits.
+ * A stream that merely stops is indistinguishable from success on the wire, so the turn state
+ * machine treats silence as failure (dead-air timeout) and a clean close without a terminal as an
+ * error. `heartbeat` proves liveness in between and is never rendered.
  *
  * Hosts layer domain frames on top: any event type outside this union falls through the state
- * machine's `onDomainFrame` hook (the aws kit's pattern), so a host can add e.g. `dataset` or
- * `question` frames without forking the kit.
+ * machine's `onDomainFrame` hook (e.g. Groundsworth's `suggestion` and `filters`), so a host can
+ * extend the wire without forking the kit. Domain event names match `^[a-z][a-z0-9-]*$` and never
+ * shadow a core name.
  */
 
 /** Opens the stream: the turn id and the routed provider/model serving it. Informational — a
@@ -20,46 +26,126 @@ export interface LoadedFrame {
   model: string;
 }
 
-/** One suggestion card. The card body is host-domain (Groundsworth: a field-edit draft); the kit
- * hands it to the host untouched — drafting is the kit's job, applying is the user's. */
-export interface SuggestionFrame {
-  type: 'suggestion';
-  section: string;
-  path: string;
-  value?: unknown;
-  note?: string | null;
+/** One chunk of streamed assistant text. */
+export interface TokenFrame {
+  type: 'token';
+  delta: string;
 }
 
-/** The turn's terminal success frame: the assistant's closing text and the count of suggestion
- * frames that preceded it. */
-export interface ChangesetFrame {
-  type: 'changeset';
-  turnId: string;
-  text?: string | null;
-  suggestions?: number;
+/** A tool call started or finished. `label` is the server-supplied display label
+ * (`AgentTool.DisplayLabel`); absent → hosts show the raw name. */
+export interface ToolFrame {
+  type: 'tool';
+  name: string;
+  phase: 'start' | 'end';
+  label?: string | null;
 }
 
-/** Liveness only — a monotone `seq` that keeps idle-timeout proxies from killing a long model
- * round, with an optional `round` stamped at tool-round boundaries. Consumed internally by the
- * turn state machine (liveness timer); never rendered. */
-export interface HeartbeatFrame {
-  type: 'heartbeat';
-  seq: number;
-  round?: number;
-}
-
-/** The turn failed AFTER the SSE headers went out, so the refusal arrives as the terminal frame
- * rather than an HTTP status. `detail` is null for infrastructure failures (their text is
- * audit-only) and carries the sentence for a domain refusal. */
-export interface ErrorFrame {
-  type: 'error';
-  turnId?: string;
-  error: string;
+/** One pickable option in an {@link AgentQuestion}. */
+export interface QuestionOption {
+  id: string;
+  label: string;
+  /** Optional helper line under the label. */
   detail?: string | null;
 }
 
+/** A bounded question the assistant raises; rendered as an interactive card, answered as the next
+ * user turn (non-blocking — the stream ends normally after asking). */
+export interface AgentQuestion {
+  id: string;
+  prompt: string;
+  options?: QuestionOption[];
+  /** Checkboxes (true) vs radios (false). */
+  multiSelect?: boolean;
+  /** Show an "Other…" free-text row. */
+  allowOther?: boolean;
+  otherPlaceholder?: string | null;
+}
+
+/** A batch of questions asked together as one form (one Submit). */
+export interface AgentQuestionForm {
+  id: string;
+  intro?: string | null;
+  questions?: AgentQuestion[];
+}
+
+/** One question card. */
+export interface QuestionFrame {
+  type: 'question';
+  question: AgentQuestion;
+}
+
+/** One batched question form. */
+export interface QuestionFormFrame {
+  type: 'questionForm';
+  form: AgentQuestionForm;
+}
+
+/** Tappable next-step chips. Ephemeral — never persisted; chips prefill the composer, never
+ * auto-send. */
+export interface FollowupsFrame {
+  type: 'followups';
+  prompts: string[];
+}
+
+/** A web citation surfaced while streaming (rendered as a deduped footer). */
+export interface CitationFrame {
+  type: 'citation';
+  title?: string | null;
+  url?: string | null;
+}
+
+/** Aggregated token usage for the turn. Optional display; hosts may suppress server-side. */
+export interface UsageFrame {
+  type: 'usage';
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}
+
+/** Liveness only — a monotone `seq` that feeds the dead-air timer; never rendered. */
+export interface HeartbeatFrame {
+  type: 'heartbeat';
+  seq: number;
+}
+
+/** The authoritative final assistant text. Streamed tokens are the fallback only when this frame
+ * is absent. Arrives only after the host's durable finalization committed. */
+export interface MessageFrame {
+  type: 'message';
+  text: string;
+}
+
+/** Terminal success — never emitted before host finalization commits. */
+export interface DoneFrame {
+  type: 'done';
+  turnId: string;
+  title?: string | null;
+}
+
+/** Terminal failure after the SSE headers went out. `code` is a stable machine-readable code;
+ * `detail` is present only when the server marked the text safe/domain-facing (infrastructure
+ * exception detail never crosses the wire). */
+export interface ErrorFrame {
+  type: 'error';
+  code: string;
+  detail?: string | null;
+  turnId?: string | null;
+}
+
 /** The core union — what the state machine understands natively. */
-export type AgentFrame = LoadedFrame | SuggestionFrame | ChangesetFrame | HeartbeatFrame | ErrorFrame;
+export type AgentFrame =
+  | LoadedFrame
+  | TokenFrame
+  | ToolFrame
+  | QuestionFrame
+  | QuestionFormFrame
+  | FollowupsFrame
+  | CitationFrame
+  | UsageFrame
+  | HeartbeatFrame
+  | MessageFrame
+  | DoneFrame
+  | ErrorFrame;
 
 /** A core frame or a host domain frame (unknown types fall through to `onDomainFrame`). */
 export type AgentFrameOf<TDomain extends { type: string } = never> = AgentFrame | TDomain;

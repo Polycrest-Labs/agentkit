@@ -1,0 +1,9 @@
+{
+  "event": "question",
+  "payload": {
+    "question": { "id": "q2", "prompt": "Anything unusual about access?", "options": [], "multiSelect": false, "allowOther": true }
+  },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

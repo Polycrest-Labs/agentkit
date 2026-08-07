@@ -1,0 +1,15 @@
+{
+  "event": "questionForm",
+  "payload": {
+    "form": {
+      "id": "form-1",
+      "intro": "A few details to get started.",
+      "questions": [
+        { "id": "q1", "prompt": "Which county?", "options": [ { "id": "o1", "label": "Travis" } ], "multiSelect": false, "allowOther": true }
+      ]
+    }
+  },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

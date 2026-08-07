@@ -14,6 +14,10 @@ public sealed class AgentTool
 
     public required Func<string, CancellationToken, Task<ToolOutcome>> Handler { get; init; }
 
+    /// <summary>Optional human-facing label for streamed tool activity (the wire's
+    /// <c>tool.label</c>); null → hosts show the raw <see cref="Name"/>.</summary>
+    public string? DisplayLabel { get; init; }
+
     /// <summary>A tool whose arguments schema is generated from <typeparamref name="TArgs"/>
     /// (<see cref="Schema.DtoJsonSchema"/>) and whose handler receives the tolerantly-bound args —
     /// the schema constrains generation provider-side; <see cref="AgentJson"/>'s converters stay as
@@ -21,12 +25,25 @@ public sealed class AgentTool
     public static AgentTool Typed<TArgs>(
         string name, string description,
         Func<TArgs, CancellationToken, Task<ToolOutcome>> handler,
-        Schema.DtoSchemaOptions? schema = null) => new()
+        Schema.DtoSchemaOptions? schema = null, string? displayLabel = null) => new()
     {
         Name = name,
         Description = description,
         ParametersSchema = Schema.DtoJsonSchema.For<TArgs>(schema),
         Handler = (argsJson, ct) => handler(AgentJson.Deserialize<TArgs>(argsJson), ct),
+        DisplayLabel = displayLabel,
+    };
+
+    /// <summary>A tool with a literal (authored/ported) JSON parameters schema and a raw-args handler.</summary>
+    public static AgentTool Raw(
+        string name, string description, string parametersSchema,
+        Func<string, CancellationToken, Task<ToolOutcome>> handler, string? displayLabel = null) => new()
+    {
+        Name = name,
+        Description = description,
+        ParametersSchema = parametersSchema,
+        Handler = handler,
+        DisplayLabel = displayLabel,
     };
 }
 

@@ -11,6 +11,66 @@ same window: the Gemini native provider (entry 9 describes how the two lines mer
 
 ---
 
+## [0.4.0] — the conversation kit (in progress)
+
+**The one sanctioned pre-1.0 break.** Every release until now honored the "0.x stays additive"
+rule; 0.4.0 amends it exactly once, deliberately: the wire protocol both halves speak is redesigned
+as a single kit-owned vocabulary (frames v2), and the code that spoke the old dialect — the one
+consumer's hand-written SSE controllers and the 0.2.0 frame union — is deleted by the same
+coordinated release that ships this version. The break is nearly free now, with exactly one kit
+consumer to migrate, and will never be repeated: from here the vocabulary evolves additively.
+
+**Frames v2** (`src/AgentKit/Wire/AgentFrames.cs` ↔ `ui/src/lib/frames.ts`, conformance-tested
+against `protocol/fixtures/*.json` from BOTH suites — drift on either side fails that repo's CI):
+
+| Frame | Payload | Produced from |
+| --- | --- | --- |
+| `loaded` | `{turnId, provider, model}` | host-resolved `AgentTurnDescriptor`; always first |
+| `token` | `{delta}` | `TokenDelta` |
+| `tool` | `{name, phase: start\|end, label?}` | `ToolCallStarted/Finished` + `AgentTool.DisplayLabel` |
+| `question` / `questionForm` | `{question}` / `{form}` | the kit question tools |
+| `followups` | `{prompts[]}` | `suggest_followups`; ephemeral, prefill-never-auto-send |
+| `citation` | `{title?, url?}` | `CitationFound` |
+| `usage` | `{inputTokens?, outputTokens?}` | `UsageReport`; suppressible |
+| `heartbeat` | `{seq}` | the session's pump (default 15 s); never rendered |
+| `message` | `{text}` | successful outcome, AFTER host finalization; authoritative final text |
+| `done` | `{turnId, title?}` | terminal success, never before the host commit |
+| `error` | `{code, detail?, turnId?}` | stable code; `detail` only when explicitly safe |
+| *domain* | host-defined object | `ToolOutcome.DomainEvents` → host `DomainFrameMapper` |
+
+`changeset` and core `suggestion` retire (the sole consumer's dialect — `suggestion`/`filters`
+demote to Groundsworth domain frames). The SSE `event:` name is the sole discriminant: payloads
+are object-only, TS reassembles `{...payload, type: eventName}` (a hostile payload `type` can
+never spoof a terminal), domain names match `^[a-z][a-z0-9-]*$` and can't shadow core names.
+
+Shipped so far (phase 1 of the conversation-kit build):
+
+- **`AgentTurnSession` + `AgentWireOptions`** (dependency-free): nonterminal frame sequence
+  (`loaded` first, heartbeat merged through one bounded channel, fake-time testable via
+  `TimeProvider`) plus an awaited `AgentTurnOutcome {FinalText, Exception, WasCanceled,
+  Interactions, Citations, Usage}`. Completion/fault/cancel complete the OUTCOME — the session
+  never emits success/error terminals; that's the SSE writer's job, gated on the host finalizer.
+- **Question/follow-up tools promoted from the aws line**: `AgentQuestion`/`QuestionOption`/
+  `AgentQuestionForm` DTOs (field shapes 1:1 — they are the wire contract),
+  `AgentQuestionTools.AskQuestion/AskQuestions/SuggestFollowups` factories with the guardrail
+  prose intact, typed `QuestionEvent`/`QuestionFormEvent`/`FollowupsEvent` domain events the
+  session maps natively, and `AgentQuestionHistory.Render` (the anti-re-ask bracket-note idiom,
+  fed from durable host records).
+- **`AgentTool.DisplayLabel`** (+ `AgentTool.Raw` factory; `Typed` gains the parameter) —
+  server-supplied tool labels replace per-app label maps.
+- **Attachment/multimodal contracts**: scope-generic `IAgentAttachmentStore<TScope>` with rich
+  DTOs (`StoredAgentAsset` — string asset ids), `AgentAttachmentLimits` (4 files / 25 MB /
+  exact-MIME allowlist defaults), and `AgentHistoryMessage.Parts` (ordered text/image/document
+  parts) so hosts can replay eligible prior attachments as real multimodal history.
+- **TS mirror hardening**: `parseFrame` requires a valid event name and a non-null non-array
+  object payload; `AgentTurnBody.attachmentAssetIds`/`UploadedAgentAsset.assetId` retype to
+  string; the turn state adopts the v2 terminals (`message` authoritative, streamed tokens as
+  fallback) ahead of its full v2 rework.
+- `DtoJsonSchema.For` is now safe under concurrent first use (schema generation serialized —
+  two racing static initializers could previously hit "options instance is read-only").
+
+---
+
 ## [0.3.0] — the `openai-responses` provider kind (2026-08-05)
 
 A fourth provider kind, `openai-responses`: the **OpenAI platform's** Responses API, the

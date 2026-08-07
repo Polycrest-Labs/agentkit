@@ -34,4 +34,9 @@
     <ProjectReference Include="..\..\src\AgentKit\AgentKit.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The canonical wire-protocol fixtures — the same files the TS suite parses. -->
+    <Content Include="..\..\protocol\fixtures\**" CopyToOutputDirectory="PreserveNewest" LinkBase="protocol-fixtures\" />
+  </ItemGroup>
+
 </Project>

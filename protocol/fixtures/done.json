@@ -1,0 +1,7 @@
+{
+  "event": "done",
+  "payload": { "turnId": "turn-1" },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

@@ -1,0 +1,7 @@
+{
+  "event": "error",
+  "payload": { "code": "turn_failed" },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

@@ -1,0 +1,7 @@
+{
+  "event": "tool",
+  "payload": { "name": "rank_comps", "phase": "start", "label": "Ranking comparables" },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

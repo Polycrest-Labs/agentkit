@@ -1,0 +1,8 @@
+{
+  "event": "token",
+  "payload": { "delta": "x", "type": "done" },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": false,
+  "note": "The SSE event name is the sole discriminant — a hostile payload 'type' can never override it."
+}

@@ -11,8 +11,9 @@ import { InjectionToken } from '@angular/core';
  * the aws surfaces post `{ text, attachmentAssetIds }`). */
 export interface AgentTurnBody {
   text: string;
-  /** Uploaded asset ids riding this turn (absent when no attachments are pending). */
-  attachmentAssetIds?: number[];
+  /** Uploaded asset ids riding this turn (absent when no attachments are pending). Strings —
+   * hosts choose their own identity scheme (Groundsworth: an attachment-row uuid). */
+  attachmentAssetIds?: string[];
   /** Host extras merged in by the caller (e.g. import's dirty draftJson). */
   [extra: string]: unknown;
 }
@@ -54,12 +55,15 @@ export interface AgentChatCapable<TSummary extends AgentChatSummary = AgentChatS
   deleteChat(chatId: number): Promise<unknown>;
 }
 
-/** What the attachment-chip flow needs back from an upload. */
+/** What the attachment-chip flow needs back from an upload (the C# `StoredAgentAsset` mirror). */
 export interface UploadedAgentAsset {
-  assetId: number;
+  /** String asset id — hosts choose their own identity scheme. */
+  assetId: string;
+  originalName?: string;
   contentType?: string;
-  /** Sources distinguish kinds (aws import: source/page/image); `source` assets never ride a turn. */
+  /** "image" | "document" for kit-stored assets; `source` assets never ride a turn. */
   kind?: string;
+  byteSize?: number;
 }
 
 /** Optional capability: composer attachment upload (the ids ride the next turn's body). */

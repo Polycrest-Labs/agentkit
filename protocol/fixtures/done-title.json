@@ -1,0 +1,7 @@
+{
+  "event": "done",
+  "payload": { "turnId": "turn-1", "title": "Comps ranked" },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

@@ -1,0 +1,6 @@
+{
+  "event": "message",
+  "rawData": "{ not json",
+  "valid": false,
+  "kind": "core"
+}

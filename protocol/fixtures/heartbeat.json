@@ -1,0 +1,7 @@
+{
+  "event": "heartbeat",
+  "payload": { "seq": 3 },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

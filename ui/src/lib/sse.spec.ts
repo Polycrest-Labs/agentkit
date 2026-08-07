@@ -16,27 +16,52 @@ function sseResponse(...blocks: string[]): Response {
 }
 
 describe('parseFrame', () => {
-  it('round-trips all five core frames', () => {
-    const loaded = parseFrame<AgentFrame>('event: loaded\ndata: {"turnId":"t1","provider":"azure-openai","model":"gpt-4o"}');
-    expect(loaded).toEqual({ type: 'loaded', turnId: 't1', provider: 'azure-openai', model: 'gpt-4o' });
+  it('round-trips the v2 core frames', () => {
+    const loaded = parseFrame<AgentFrame>('event: loaded\ndata: {"turnId":"t1","provider":"azure-openai","model":"gpt-5-mini"}');
+    expect(loaded).toEqual({ type: 'loaded', turnId: 't1', provider: 'azure-openai', model: 'gpt-5-mini' });
 
-    const suggestion = parseFrame<AgentFrame>('event: suggestion\ndata: {"section":"improvements","path":"roof.condition","value":"fair","note":"per photos"}');
-    expect(suggestion).toEqual({ type: 'suggestion', section: 'improvements', path: 'roof.condition', value: 'fair', note: 'per photos' });
+    const token = parseFrame<AgentFrame>('event: token\ndata: {"delta":"Hel"}');
+    expect(token).toEqual({ type: 'token', delta: 'Hel' });
 
-    const heartbeat = parseFrame<AgentFrame>('event: heartbeat\ndata: {"seq":3,"round":1}');
-    expect(heartbeat).toEqual({ type: 'heartbeat', seq: 3, round: 1 });
+    const tool = parseFrame<AgentFrame>('event: tool\ndata: {"name":"rank_comps","phase":"start","label":"Ranking comparables"}');
+    expect(tool).toEqual({ type: 'tool', name: 'rank_comps', phase: 'start', label: 'Ranking comparables' });
 
-    const changeset = parseFrame<AgentFrame>('event: changeset\ndata: {"turnId":"t1","text":"Done.","suggestions":2}');
-    expect(changeset).toEqual({ type: 'changeset', turnId: 't1', text: 'Done.', suggestions: 2 });
+    const heartbeat = parseFrame<AgentFrame>('event: heartbeat\ndata: {"seq":3}');
+    expect(heartbeat).toEqual({ type: 'heartbeat', seq: 3 });
 
-    const error = parseFrame<AgentFrame>('event: error\ndata: {"turnId":"t1","error":"turn-failed","detail":null}');
-    expect(error).toEqual({ type: 'error', turnId: 't1', error: 'turn-failed', detail: null });
+    const message = parseFrame<AgentFrame>('event: message\ndata: {"text":"Done."}');
+    expect(message).toEqual({ type: 'message', text: 'Done.' });
+
+    const done = parseFrame<AgentFrame>('event: done\ndata: {"turnId":"t1"}');
+    expect(done).toEqual({ type: 'done', turnId: 't1' });
+
+    const error = parseFrame<AgentFrame>('event: error\ndata: {"turnId":"t1","code":"turn_failed","detail":null}');
+    expect(error).toEqual({ type: 'error', turnId: 't1', code: 'turn_failed', detail: null });
   });
 
   it('returns null for malformed blocks (missing name, missing data, bad JSON)', () => {
     expect(parseFrame('data: {"seq":1}')).toBeNull();
     expect(parseFrame('event: heartbeat')).toBeNull();
     expect(parseFrame('event: heartbeat\ndata: {not json')).toBeNull();
+  });
+
+  it('requires an object payload — primitives, arrays and null are rejected', () => {
+    expect(parseFrame('event: token\ndata: 42')).toBeNull();
+    expect(parseFrame('event: token\ndata: [1,2]')).toBeNull();
+    expect(parseFrame('event: token\ndata: null')).toBeNull();
+    expect(parseFrame('event: token\ndata: "text"')).toBeNull();
+  });
+
+  it('rejects invalid event names', () => {
+    expect(parseFrame('event: Bad_Name!\ndata: {}')).toBeNull();
+    expect(parseFrame('event: -leading\ndata: {}')).toBeNull();
+    expect(parseFrame('event: UPPER\ndata: {}')).toBeNull();
+  });
+
+  it('a hostile payload type can never override the event discriminant', () => {
+    const frame = parseFrame<{ type: string; delta: string }>('event: token\ndata: {"delta":"x","type":"done"}');
+    expect(frame?.type).toBe('token');
+    expect(frame?.delta).toBe('x');
   });
 });
 
@@ -47,12 +72,13 @@ describe('readSseStream', () => {
       'event: loaded\ndata: {"turnId":"t1","provider":"p","model":"m"}\n\n',
       'event: broken\ndata: {oops\n\n', // malformed JSON — parseFrame → null, stream continues
       'event: heartbeat\ndata: {"seq":1}\n\n',
-      'event: changeset\ndata: {"turnId":"t1","text":"Hi","suggestions":0}\n\n',
+      'event: message\ndata: {"text":"Hi"}\n\n',
+      'event: done\ndata: {"turnId":"t1"}\n\n',
     );
 
     await readSseStream<AgentFrame>(response, (e) => events.push(e));
 
-    expect(events.map((e) => e.type)).toEqual(['loaded', 'heartbeat', 'changeset']);
+    expect(events.map((e) => e.type)).toEqual(['loaded', 'heartbeat', 'message', 'done']);
   });
 
   it('reassembles frames split across chunk boundaries', async () => {

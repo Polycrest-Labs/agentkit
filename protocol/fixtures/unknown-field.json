@@ -1,0 +1,8 @@
+{
+  "event": "token",
+  "payload": { "delta": "x", "futureHint": 1 },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": false,
+  "note": "A tolerated unknown field: both sides parse it; the C# re-serialization drops it."
+}

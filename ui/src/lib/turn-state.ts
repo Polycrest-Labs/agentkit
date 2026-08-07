@@ -1,5 +1,5 @@
 import { computed, signal } from '@angular/core';
-import { AgentFrame, ChangesetFrame, ErrorFrame, LoadedFrame, SuggestionFrame } from './frames';
+import { AgentFrame, DoneFrame, ErrorFrame, LoadedFrame, MessageFrame } from './frames';
 import { AgentAttachmentCapable, AgentTransport, AgentTurnBody, AgentTurnRefusal, UploadedAgentAsset } from './tokens';
 
 /** A rendered transcript bubble (optimistic entries carry an empty timestamp). */
@@ -20,7 +20,7 @@ export interface PendingChip {
 
 /** Where the turn lifecycle currently stands. `error` covers a failed turn AND a stream that
  * ended without a terminal frame (silence is failure — the server always closes a healthy turn
- * with `changeset` or `error`). */
+ * with `message` + `done` or `error`). */
 export type AgentTurnPhase = 'idle' | 'streaming' | 'done' | 'error';
 
 export interface AgentTurnStateOptions {
@@ -59,12 +59,12 @@ const DEFAULT_TEXT: AgentTurnStateText = {
 };
 
 export interface SendAgentTurnOptions<TDomain extends { type: string } = { type: string }> {
-  /** A suggestion card arrived. Drafting is the kit's job; rendering/applying is the host's. */
-  onSuggestion?(frame: SuggestionFrame): void;
   /** The stream opened (turn id, routed provider/model). */
   onLoaded?(frame: LoadedFrame): void;
-  /** The turn's terminal success frame (its text is already in the transcript). */
-  onChangeset?(frame: ChangesetFrame): void;
+  /** The authoritative final text arrived (already recorded for the transcript). */
+  onMessage?(frame: MessageFrame): void;
+  /** The turn's terminal success frame (the message text is already in the transcript). */
+  onDone?(frame: DoneFrame): void;
   /** The turn's terminal error frame (its message is already in the transcript). */
   onError?(frame: ErrorFrame): void;
   /** Anything outside the core union — host domain frames fall through here, never error. */
@@ -76,14 +76,16 @@ export interface SendAgentTurnOptions<TDomain extends { type: string } = { type:
 /**
  * The agent-turn state machine — the aws `ChatTurnState` mechanics (commit 28131fd: the
  * monotonic stale-stream guard, optimistic user append, upload-then-chip attachment flow,
- * end-of-turn finalization) reworked onto the `loaded · suggestion · changeset · heartbeat ·
- * error` core union:
+ * end-of-turn finalization) on the v2 frame union (`loaded · token · tool · question ·
+ * questionForm · followups · citation · usage · heartbeat · message · done · error`):
  *
+ * - `message` is the authoritative final text; accumulated `token` deltas are the fallback only
+ *   when no `message` arrived before `done`.
  * - `heartbeat` is consumed INTERNALLY as a liveness signal — it resets the dead-air timer and
  *   feeds the `working` signal; it is never rendered.
  * - Silence is failure: no frame at all for `deadAirMs` mid-stream transitions to the error
  *   state (exactly once) and hangs up — matching the server's terminal-error convention, where
- *   a healthy turn always closes with `changeset` or `error`.
+ *   a healthy turn always closes with `message` + `done` or `error`.
  * - Refusals before any frame (409 busy, 503 unconfigured) arrive as {@link AgentTurnRefusal}
  *   from the transport: 503 latches the `unavailable` signal; 409 gets the busy line.
  * - `abort()` is a quiet hang-up: no message, no error state (the aws detach semantics; the
@@ -109,7 +111,7 @@ export class AgentTurnState<TDomain extends { type: string } = { type: string }>
 
   /** Monotonic turn id — bumped on each send, abort, reset, and dead-air failure. */
   private streamSeq = 0;
-  private attachmentAssetIds: number[] = [];
+  private attachmentAssetIds: string[] = [];
   private readonly previewUrls = new Set<string>();
   private inflight: AbortController | null = null;
   private deadAirTimer: ReturnType<typeof setTimeout> | null = null;
@@ -206,6 +208,11 @@ export class AgentTurnState<TDomain extends { type: string } = { type: string }>
       inflight.abort();
     });
 
+    // The authoritative final text (`message`) and the streamed-token fallback. Phase-1 note:
+    // tokens accumulate for the fallback rule; live streaming rendering arrives with state v2.
+    let messageText: string | undefined;
+    let streamedText = '';
+
     const collect = (frame: AgentFrame | TDomain): void => {
       switch (frame.type) {
         case 'loaded':
@@ -215,18 +222,37 @@ export class AgentTurnState<TDomain extends { type: string } = { type: string }>
         case 'heartbeat':
           // Liveness only — the dead-air reset below already did the work; never rendered.
           break;
-        case 'suggestion':
-          rendered = true;
-          opts.onSuggestion?.(frame as SuggestionFrame);
+        case 'token':
+          streamedText += (frame as { delta?: string }).delta ?? '';
           break;
-        case 'changeset': {
-          closed = true;
-          const changeset = frame as ChangesetFrame;
-          if (changeset.text) {
+        case 'tool':
+        case 'citation':
+        case 'usage':
+        case 'followups':
+          // Core frames with no phase-1 rendering — consumed (never onDomainFrame), surfaced by state v2.
+          break;
+        case 'question':
+        case 'questionForm':
+          // A question card is user-visible content: a turn that only asked is a complete answer.
+          rendered = true;
+          break;
+        case 'message': {
+          const message = frame as MessageFrame;
+          messageText = message.text;
+          if (message.text) {
             rendered = true;
           }
-          finish('done', changeset.text ?? undefined);
-          opts.onChangeset?.(changeset);
+          opts.onMessage?.(message);
+          break;
+        }
+        case 'done': {
+          closed = true;
+          const finalText = messageText ?? (streamedText || undefined);
+          if (finalText) {
+            rendered = true;
+          }
+          finish('done', finalText);
+          opts.onDone?.(frame as DoneFrame);
           break;
         }
         case 'error': {
@@ -359,7 +385,7 @@ export class AgentTurnState<TDomain extends { type: string } = { type: string }>
 
   removePending(chip: { id: string; previewUrl?: string | null }): void {
     const chipIds = new Set(chip.id.split('+'));
-    this.attachmentAssetIds = this.attachmentAssetIds.filter((id) => !chipIds.has(String(id)));
+    this.attachmentAssetIds = this.attachmentAssetIds.filter((id) => !chipIds.has(id));
     this.pendingAttachments.update((p) => p.filter((c) => c.id !== chip.id));
     if (chip.previewUrl && this.previewUrls.delete(chip.previewUrl)) {
       URL.revokeObjectURL(chip.previewUrl);

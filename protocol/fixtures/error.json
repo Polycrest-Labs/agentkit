@@ -1,0 +1,7 @@
+{
+  "event": "error",
+  "payload": { "code": "turn_failed", "detail": "The job has no subject address yet.", "turnId": "turn-1" },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

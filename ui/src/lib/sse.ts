@@ -5,7 +5,14 @@
  * `frames.ts`; unknown event types fall through each consumer's domain-frame hook.
  */
 
-/** One `event:`/`data:` SSE block → a typed event ({ type: name, ...payload }); null when malformed. */
+/** Event names: lower-camel core names (`questionForm`) and lower-kebab domain names. Anything
+ * else is refused — a malformed name never reaches the state machine. */
+const EVENT_NAME = /^[a-z][a-zA-Z0-9-]*$/;
+
+/** One `event:`/`data:` SSE block → a typed event (`{...payload, type: name}`); null when
+ * malformed. Hardened on three fronts: the event name must match {@link EVENT_NAME}; the payload
+ * must be a non-null, non-array JSON object; and `type` is stamped LAST from the event name, so a
+ * hostile payload `type` member can never spoof the discriminant. */
 export function parseFrame<TEvent extends { type: string }>(block: string): TEvent | null {
   let name = '';
   let data = '';
@@ -13,10 +20,11 @@ export function parseFrame<TEvent extends { type: string }>(block: string): TEve
     if (line.startsWith('event:')) name = line.slice(6).trim();
     else if (line.startsWith('data:')) data += line.slice(5).trim();
   }
-  if (!name || !data) return null;
+  if (!name || !EVENT_NAME.test(name) || !data) return null;
   try {
-    const payload = JSON.parse(data);
-    return { type: name, ...payload } as TEvent;
+    const payload: unknown = JSON.parse(data);
+    if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return null;
+    return { ...(payload as Record<string, unknown>), type: name } as TEvent;
   } catch {
     return null;
   }

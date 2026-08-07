@@ -1,0 +1,7 @@
+{
+  "event": "message",
+  "payload": { "text": "All set — **two** comps ranked." },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AgentFrame, SuggestionFrame } from './frames';
+import { AgentFrame } from './frames';
 import { AgentTransport, AgentTurnBody, AgentTurnRefusal, UploadedAgentAsset } from './tokens';
 import { AgentTurnState } from './turn-state';
 
@@ -11,8 +11,9 @@ function scripted(run: (emit: Emit, signal: AbortSignal | undefined, body: Agent
   return { streamTurn: (body, onFrame, signal) => run(onFrame as Emit, signal, body) };
 }
 
-const LOADED: AgentFrame = { type: 'loaded', turnId: 't1', provider: 'azure-openai', model: 'gpt-4o' };
-const CHANGESET: AgentFrame = { type: 'changeset', turnId: 't1', text: 'All set.', suggestions: 1 };
+const LOADED: AgentFrame = { type: 'loaded', turnId: 't1', provider: 'azure-openai', model: 'gpt-5-mini' };
+const MESSAGE: AgentFrame = { type: 'message', text: 'All set.' };
+const DONE: AgentFrame = { type: 'done', turnId: 't1' };
 
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -31,29 +32,60 @@ afterEach(() => {
 });
 
 describe('AgentTurnState — the happy path', () => {
-  it('idle → streaming → done, with the changeset text in the transcript and hooks fired', async () => {
-    const suggestions: SuggestionFrame[] = [];
+  it('idle → streaming → done, with the message text in the transcript and hooks fired', async () => {
+    const domain: { type: string }[] = [];
     const state = new AgentTurnState(scripted(async (emit) => {
       await flush(); // the wire is never synchronous — frames land after send() returns
       emit(LOADED);
       emit({ type: 'heartbeat', seq: 1 });
-      emit({ type: 'suggestion', section: 'site', path: 'access', value: 'paved' });
-      emit(CHANGESET);
+      emit({ type: 'suggestion', section: 'site', path: 'access', value: 'paved' }); // host domain frame now
+      emit(MESSAGE);
+      emit(DONE);
     }));
 
     expect(state.phase()).toBe('idle');
-    const sent = state.send('rank the comps', { onSuggestion: (s) => suggestions.push(s) });
+    const sent = state.send('rank the comps', { onDomainFrame: (f) => domain.push(f) });
     expect(sent).toBe(true);
     expect(state.phase()).toBe('streaming');
     await flush();
 
     expect(state.phase()).toBe('done');
-    expect(state.loaded()?.model).toBe('gpt-4o');
-    expect(suggestions).toHaveLength(1);
+    expect(state.loaded()?.model).toBe('gpt-5-mini');
+    expect(domain).toHaveLength(1);
     expect(state.messages().map((m) => [m.role, m.text])).toEqual([
       ['user', 'rank the comps'],
       ['assistant', 'All set.'],
     ]);
+  });
+
+  it('message is authoritative — streamed tokens are only the fallback', async () => {
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(LOADED);
+      emit({ type: 'token', delta: 'streamed ' });
+      emit({ type: 'token', delta: 'draft' });
+      emit(MESSAGE);
+      emit(DONE);
+    }));
+
+    state.send('hello');
+    await flush();
+
+    expect(state.messages().at(-1)?.text).toBe('All set.');
+  });
+
+  it('accumulated tokens stand in when no message frame arrived before done', async () => {
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(LOADED);
+      emit({ type: 'token', delta: 'Hel' });
+      emit({ type: 'token', delta: 'lo' });
+      emit(DONE);
+    }));
+
+    state.send('hello');
+    await flush();
+
+    expect(state.phase()).toBe('done');
+    expect(state.messages().at(-1)?.text).toBe('Hello');
   });
 
   it('refuses to send while a turn is streaming', async () => {
@@ -64,7 +96,8 @@ describe('AgentTurnState — the happy path', () => {
 
   it('a closed turn with nothing visible says so', async () => {
     const state = new AgentTurnState(scripted(async (emit) => {
-      emit({ type: 'changeset', turnId: 't1', text: null, suggestions: 0 });
+      emit(LOADED);
+      emit(DONE);
     }));
 
     state.send('anything to add?');
@@ -72,6 +105,20 @@ describe('AgentTurnState — the happy path', () => {
 
     expect(state.phase()).toBe('done');
     expect(state.messages().at(-1)?.text).toContain('nothing to add');
+  });
+
+  it('a turn that only asked a question is a complete answer, not "nothing to add"', async () => {
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(LOADED);
+      emit({ type: 'question', question: { id: 'q1', prompt: 'Which rights?' } });
+      emit(DONE);
+    }));
+
+    state.send('value the property');
+    await flush();
+
+    expect(state.phase()).toBe('done');
+    expect(state.messages().filter((m) => m.text.includes('nothing to add'))).toHaveLength(0);
   });
 });
 
@@ -100,10 +147,10 @@ describe('AgentTurnState — refusals and errors', () => {
     expect(state.phase()).toBe('error');
   });
 
-  it('a terminal error frame renders its detail sentence', async () => {
+  it('a terminal error frame renders its safe detail sentence', async () => {
     const state = new AgentTurnState(scripted(async (emit) => {
       emit(LOADED);
-      emit({ type: 'error', turnId: 't1', error: 'turn-failed', detail: 'the model refused' });
+      emit({ type: 'error', turnId: 't1', code: 'turn_failed', detail: 'the model refused' });
     }));
 
     state.send('hello');
@@ -111,6 +158,18 @@ describe('AgentTurnState — refusals and errors', () => {
 
     expect(state.phase()).toBe('error');
     expect(state.messages().at(-1)?.text).toBe('The turn failed — the model refused');
+  });
+
+  it('a terminal error frame without detail uses the generic line', async () => {
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(LOADED);
+      emit({ type: 'error', turnId: 't1', code: 'turn_failed' });
+    }));
+
+    state.send('hello');
+    await flush();
+
+    expect(state.messages().at(-1)?.text).toBe('The turn failed — try again.');
   });
 
   it('a stream that closes without a terminal frame is a failure, not a success', async () => {
@@ -190,13 +249,33 @@ describe('AgentTurnState — abort and fall-through', () => {
     const domain: { type: string }[] = [];
     const state = new AgentTurnState(scripted(async (emit) => {
       emit({ type: 'dataset', name: 'comps' } as { type: string });
-      emit(CHANGESET);
+      emit(MESSAGE);
+      emit(DONE);
     }));
 
     state.send('hello', { onDomainFrame: (f) => domain.push(f) });
     await flush();
 
     expect(domain).toEqual([{ type: 'dataset', name: 'comps' }]);
+    expect(state.phase()).toBe('done');
+  });
+
+  it('core v2 frames (tool, citation, usage, followups) never leak into onDomainFrame', async () => {
+    const domain: { type: string }[] = [];
+    const state = new AgentTurnState(scripted(async (emit) => {
+      emit(LOADED);
+      emit({ type: 'tool', name: 'rank_comps', phase: 'start' });
+      emit({ type: 'citation', title: 'TxGIO', url: 'https://example.test' });
+      emit({ type: 'usage', inputTokens: 10, outputTokens: 2 });
+      emit({ type: 'followups', prompts: ['Find comps'] });
+      emit(MESSAGE);
+      emit(DONE);
+    }));
+
+    state.send('hello', { onDomainFrame: (f) => domain.push(f) });
+    await flush();
+
+    expect(domain).toHaveLength(0);
     expect(state.phase()).toBe('done');
   });
 });
@@ -207,7 +286,8 @@ describe('AgentTurnState — attachments', () => {
     const transport = {
       ...scripted(async (emit, _signal, body) => {
         bodies.push(body);
-        emit(CHANGESET);
+        emit(MESSAGE);
+        emit(DONE);
       }),
       uploadAttachments: () => new Promise<UploadedAgentAsset[]>((resolve) => {
         resolveUpload = () => resolve(assets);
@@ -219,7 +299,7 @@ describe('AgentTurnState — attachments', () => {
   }
 
   it('send is refused while an upload is in flight; the asset ids ride the next turn', async () => {
-    const { transport, bodies, finishUpload } = uploadingTransport([{ assetId: 41 }, { assetId: 42 }]);
+    const { transport, bodies, finishUpload } = uploadingTransport([{ assetId: 'a-41' }, { assetId: 'a-42' }]);
     const state = new AgentTurnState(transport);
 
     state.addFiles([new File(['%PDF'], 'lease.pdf', { type: 'application/pdf' })]);
@@ -231,18 +311,18 @@ describe('AgentTurnState — attachments', () => {
     expect(state.uploadsInFlight()).toBe(0);
     const chip = state.pendingAttachments()[0];
     expect(chip.fileName).toBe('lease.pdf (2 pages)');
-    expect(chip.id).toBe('41+42');
+    expect(chip.id).toBe('a-41+a-42');
 
     expect(state.send('classify this')).toBe(true);
     await flush();
-    expect(bodies[0].attachmentAssetIds).toEqual([41, 42]);
+    expect(bodies[0].attachmentAssetIds).toEqual(['a-41', 'a-42']);
     expect(state.pendingAttachments()).toHaveLength(0);
   });
 
   it('source-kind assets never ride a turn', async () => {
     const { transport, finishUpload } = uploadingTransport([
-      { assetId: 1, kind: 'source' },
-      { assetId: 2, kind: 'page' },
+      { assetId: 'a-1', kind: 'source' },
+      { assetId: 'a-2', kind: 'page' },
     ]);
     const state = new AgentTurnState(transport);
 
@@ -250,11 +330,11 @@ describe('AgentTurnState — attachments', () => {
     finishUpload();
     await flush();
 
-    expect(state.pendingAttachments()[0].id).toBe('2');
+    expect(state.pendingAttachments()[0].id).toBe('a-2');
   });
 
   it('removing a chip drops every joined asset id', async () => {
-    const { transport, bodies, finishUpload } = uploadingTransport([{ assetId: 7 }, { assetId: 8 }]);
+    const { transport, bodies, finishUpload } = uploadingTransport([{ assetId: 'a-7' }, { assetId: 'a-8' }]);
     const state = new AgentTurnState(transport);
     state.addFiles([new File(['%PDF'], 'doc.pdf', { type: 'application/pdf' })]);
     finishUpload();

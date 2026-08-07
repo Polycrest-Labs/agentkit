@@ -244,11 +244,34 @@ public sealed class AgentRunner(IModelRouter router, IChatClientFactory factory,
         var messages = new List<ChatMessage>();
         foreach (var m in request.History)
         {
-            if (!string.IsNullOrWhiteSpace(m.Text))
+            var role = string.Equals(m.Role, "assistant", StringComparison.OrdinalIgnoreCase) ? ChatRole.Assistant : ChatRole.User;
+            if (m.Parts.Count > 0)
             {
-                messages.Add(new ChatMessage(
-                    string.Equals(m.Role, "assistant", StringComparison.OrdinalIgnoreCase) ? ChatRole.Assistant : ChatRole.User,
-                    m.Text));
+                // Multimodal history: ordered parts are the message content (Text is unused).
+                var contents = new List<AIContent>();
+                foreach (var part in m.Parts)
+                {
+                    switch (part)
+                    {
+                        case AgentHistoryTextPart { Text: { Length: > 0 } text } when !string.IsNullOrWhiteSpace(text):
+                            contents.Add(new TextContent(text));
+                            break;
+                        case AgentHistoryImagePart { Image: var image }:
+                            contents.Add(new DataContent(image.Bytes, image.MediaType));
+                            break;
+                        case AgentHistoryDocumentPart { Document: var document }:
+                            contents.Add(new DataContent(document.Bytes, document.MediaType) { Name = document.Name });
+                            break;
+                    }
+                }
+                if (contents.Count > 0)
+                {
+                    messages.Add(new ChatMessage(role, contents));
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(m.Text))
+            {
+                messages.Add(new ChatMessage(role, m.Text));
             }
         }
         if (request.Images.Count == 0 && request.Documents.Count == 0)

@@ -1,0 +1,7 @@
+{
+  "event": "citation",
+  "payload": { "title": "TxGIO parcel data", "url": "https://example.test/txgio" },
+  "valid": true,
+  "kind": "core",
+  "roundTrip": true
+}
